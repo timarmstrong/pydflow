@@ -1,1 +1,1 @@
-from logical import fltype
+from logical import flvar

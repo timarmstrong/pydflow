@@ -7,9 +7,9 @@ class LogicalTypeError(ValueError):
     def __init__(self, *args, **kwargs):
         ValueError.__init__(self, *args, **kwargs)
 
-class fltype(object):
+class flvar(object):
     """
-    The base logical type in PyDFlow.
+    The base logical type in PyDFlow: a flow variable.
     Subclasses don't need to call init.
     """
     @classmethod

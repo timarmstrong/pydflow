@@ -56,7 +56,7 @@ class task_decorator(object):
             raise Exception("task_class must be defined for task_decorator")
 
         # Build the input specification for the function using introspection
-        self.input_spec = [InputSpec(t, name) 
+        self.input_spec = [InputSpec( name, t) 
                     for t, name 
                     in zip(self.input_types, inspect.getargspec(function)[0])]
 
@@ -73,12 +73,12 @@ class TaskWrapper:
     def __call__(self, *args, **kwargs):
         # Set up the input/output channels and the tasks, plugging
         # them all together and validating types
-        task = self.task_class(self.converted, self.output_types, self.input_spec,
+        task = self.task_class(self.func, self.output_types, self.input_spec,
                                 *args, **kwargs)
 
         # Unpack the tuple if necessary
-        if len(task.output_channels) == 1:
-            return task.output_channels[0]
+        if len(task._outputs) == 1:
+            return task._outputs[0]
         else:
-            return task.output_channels
+            return task._outputs
 

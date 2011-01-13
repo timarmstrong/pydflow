@@ -1,1 +1,1 @@
-from types import fltype
+from types import flvar

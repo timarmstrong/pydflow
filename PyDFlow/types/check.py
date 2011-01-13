@@ -1,7 +1,13 @@
+from logical import flvar
+
 """
 Logic to define function input and output type signatures and to check
 lists of arguments against them.
 """
+
+class FlTypeError(ValueError):
+    def __init__(self, *args, **kwargs):
+        ValueError.__init__(self, *args, **kwargs)
 
 class InputSpec(object):
     """
@@ -9,7 +15,7 @@ class InputSpec(object):
     """
     def __init__(self, name, fltype):
         self.name = name
-        self.type = type 
+        self.fltype = fltype 
 
     def __repr__(self):
         return 'flinput: %s %s' % (self.name, repr(self.fltype))
@@ -19,7 +25,7 @@ class InputSpec(object):
         Not a variable to be processed by PyDFlow, it will be passed through
         as a plain python variable
         """
-        return self.type is None
+        return self.fltype is None
 
 
 def check_logicaltype(spec, var):
@@ -36,20 +42,21 @@ def check_logicaltype(spec, var):
         # function.  Don't need to do anything, except pass whatever
         # we got in
         # Check type of matched variable matches the type signature
-        if not isinstance(var.logical, spec.fltype):
+        if not isinstance(var, flvar):
             try:
                 var = var[0]
             except TypeError:
-                raise SWTypeError("Var %s:%s not a swift variable and not subscriptable" % (
-                        spec.name, repr(var)))
-            # check the subscripted type now
-            if not isinstance(var.fltype, swbase):
-                raise SWTypeError(
-                    "Var %s:%s not a swift variable" % (
+                raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
                     spec.name, repr(var)))
-        if not isinstance(var.logical, spec.fltype):
-            raise SWTypeError("Var %s:%s not a subtype of specified type.  Required type %s, actual type %s" % (
-                spec.name, repr(var), repr(spec.fltype), repr(var.logical)))
+            # check the subscripted type now
+            if not isinstance(var, flvar):
+    
+                raise FlTypeError("Var %s:%s not a swift variable even after \
+                        subscripting" % (spec.name, repr(var)))
+        if not isinstance(var, spec.fltype):
+            raise FlTypeError("Var %s:%s not a subtype of specified type. \
+                Required type %s, actual type %s" % (
+                spec.name, repr(var), repr(spec.fltype), repr(var)))
     return var 
 
 def validate_inputs(input_spec, args, kwargs):
@@ -57,15 +64,14 @@ def validate_inputs(input_spec, args, kwargs):
     Checks that the arguments match input_spec.
     If they do match, return the arguments marshalled into an array 
     with the arguments in the order of input_spec.
-    Otherwise it will raise an SWTypeError
+    Otherwise it will raise an FlTypeError
     """
     # Check to see which go with the args (matched by position)
     # and which go with the kwargs
     arg_len = len(args)
-    pec_len = len(input_spec)
-    e
+    spec_len = len(input_spec)
     if arg_len > spec_len:
-        raise SWTypeError("Too many positional arguments %d for input specification %d" % (arg_len, len(input_spec)))
+        raise FlTypeError("Too many positional arguments %d for input specification %d" % (arg_len, len(input_spec)))
 
     # Array to build list of args
     # Process positional args first
@@ -79,7 +85,7 @@ def validate_inputs(input_spec, args, kwargs):
         # try to find in kwargs
         match = kwargs.pop(spec.name, None)
         if not match:
-            raise SWTypeError("Could not find arg %s" % spec.name)
+            raise FlTypeError("Could not find arg %s" % spec.name)
         check_logicaltype(spec, match) 
         call_args.append(match) # build up the args list
 
