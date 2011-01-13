@@ -1,0 +1,56 @@
+
+States of Tasks
+===============
+Task much be enabled by a) control flow and b) data folow
+* Atomic_Task
+INACTIVE, DATA_WAIT, DATA_READY, QUEUED, RUNNING, 
+        DONE_SUCCESS, DONE_FAIL
+
+States when task not control enabled
+INACTIVE -> DATA_READY
+
+States when task control enabled
+DATA_WAIT -> QUEUED -> RUNNING -> DONE_SUCCESS
+
+Can jump to this at any time:
+DONE_FAILED
+
+
+* Stream_Task
+TODO: do we want to distuingish between the channel being open
+    and the channel having some data in it?
+
+States when task not control enabled
+DATA_WAIT -> DATA_READY
+
+States when task control enabled
+DATA_WAIT_FILLING -> QUEUED -> RUNNING (-> RUNNING_DATA_FIN) -> DONE_SUCCESS
+
+
+States of Channels
+==================
+
+Sink:
+CLOSED -> OPEN_W -> DONE_FILLED
+
+Source:
+CLOSED -> OPEN_R -> DONE_FILLED
+
+Intermediate:
+CLOSED -> CLOSED_WAITING (-> OPEN_W) -> OPEN_RW (-> OPEN_R )-> DONE_FILLED
+                                                            -> DONE_DESTROYED
+                                    # Depending on whether data persists
+All:
+DONE_ERROR
+Transitions:
+------------
+-> OPEN_W: All resources for tasks to write to channel are available 
+-> OPEN_R: All resources for tasks to read to channel are available,
+            and data is accessible in channel
+-> OPEN_RW: All resources for reading and writing from channel are available,
+        eithe rthere should be some data in the channel or a task should be
+        expected to write to it soon
+-> CLOSED: Channel is closed and nothing is known about it
+-> DONE_FILLED: Channel is closed and data can be retrieved w/o rerunning tasks
+-> DONE_DESTROYED: (merge with CLOSED?): Channel is closed and data is no longer
+            available
