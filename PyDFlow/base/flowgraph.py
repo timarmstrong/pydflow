@@ -44,11 +44,13 @@ class Task(object):
         # Set the state to this value, however it can be overwritten
         # by child classes, as it migh tbe possible for some task
         # types to start running if not all channels are ready
+        taskname = kwargs.get('taskname', None)
         if len(input_spec) == 0:
             self._state = T_DATA_READY
         else: 
             self._state = T_INACTIVE
         
+        self._taskname = taskname
 
         # Validate the function inputs.  note: this will consume
         # kwargs that match task input arguments
@@ -60,6 +62,10 @@ class Task(object):
         finally:
             graph_mutex.release()
     
+    def __repr__(self):
+        return "<PyDFlow Task Instance: %s>" % repr(self._taskname)
+
+
     def __setup_inputs(self, input_spec):
         global graph_mutex
         self._input_spec = input_spec
@@ -109,6 +115,7 @@ class Task(object):
         """
         #TODO: notify channels, etc
         self._state = T_QUEUED
+        logging.debug("Enqueued task %s" % repr(self))
         self._exec()
 
     def _exec(self):
@@ -148,20 +155,23 @@ class Task(object):
         global graph_mutex
         graph_mutex.acquire()
         try: 
-            if self._state == T_DATA_READY:
-                # Just start it running
-                self._startme()
-                graph_mutex.release()
-            elif self._state == T_INACTIVE:
-                # Force all inputs
-                self._state = T_DATA_WAIT
-                for inp, spec in zip(self._inputs, self._input_spec):
-                    if not spec.isRaw():
-                        # if input is filled or already filling, method 
-                        # should do nothing
-                        inp.force() 
+            self._force()
         finally:
             graph_mutex.release()
+
+    def _force(self):
+        logging.debug("Task %s forced" % repr(self))
+        if self._state == T_DATA_READY:
+            # Just start it running
+            self._startme()
+        elif self._state == T_INACTIVE:
+            # Force all inputs
+            self._state = T_DATA_WAIT
+            for inp, spec in zip(self._inputs, self._input_spec):
+                if not spec.isRaw():
+                    # if input is filled or already filling, method 
+                    # should do nothing
+                    inp._force() 
     
     def state(self):
         """
@@ -192,8 +202,6 @@ class Channel(flvar):
         self._bound = _bind_location
     
     
-    # Channel modes for prepare call
-    M_READ, M_WRITE, M_READWRITE = range(3)
     def _prepare(self, mode):
         """
         Called by an input or output task to indicate that the
@@ -256,6 +264,19 @@ class Channel(flvar):
         raise UnimplementedException("get not implemented on base Channel class")
 
     def force(self):
+        """ 
+        Forces evaluation of tasks to occur such that this channel will be filled 
+        with data eventually.
+        """
+        global graph_mutex
+        graph_mutex.acquire()
+        try:
+            self._force()
+        finally:
+            graph_mutex.release()
+
+
+    def _force(self):
         """
         TODO: document
         Should be overridden.  The overriding method definition should:

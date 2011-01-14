@@ -20,6 +20,7 @@ class flvar(object):
         """
         class subtyped(cls):
             pass
+        subtyped.__name__ = cls.__name__ + ".subtype"
         return subtyped
 
     @classmethod

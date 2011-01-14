@@ -3,6 +3,8 @@ from states import *
 from PyDFlow.futures.futures import Future
 from flowgraph import acquire_global_mutex, release_global_mutex
 
+import logging
+
 
 class AtomicTask(Task):
     """
@@ -165,11 +167,31 @@ class AtomicChannel(Channel):
         self.force()
         return self._future.get() # block on future
     
-    def force(self):
-        acquire_global_mutex()
-        try:
-            self._state = CH_CLOSED_WAITING
-            for f in self._in_tasks:
-                f.force()
-        finally:
-            release_global_mutex()
+    def _force(self):
+        logging.debug("Atomic Channel forced")
+        if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
+            if self._bound and self._in_tasks == []:
+                # Data might be there
+                self._prepare(M_READ)
+            elif self._in_tasks != []:
+                # Enable task to be run, but
+                # input tasks should be run first
+                self._state = CH_CLOSED_WAITING
+                for f in self._in_tasks:
+                    f._force()
+            else:
+                # Nowhere for data to come from
+                #TODO: exception type
+                raise Exception("forcing channel which has no input tasks or bound data")
+        elif self._state in [CH_CLOSED_WAITING, CH_OPEN_R, CH_OPEN_RW]:
+            # Already forced, just wait
+            pass
+        elif self._state in [CH_OPEN_W, CH_DONE_FILLED]:
+            self._prepare(M_READ)
+        elif self._state == CH_ERROR:
+            #TODO: reraise exception
+            # retry?
+            raise Exception("Previous error: ")
+        else:
+            #TODO: exception type
+            raise Exception("Invalid state code: %d" % self._state)

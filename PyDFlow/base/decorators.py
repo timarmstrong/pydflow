@@ -1,5 +1,6 @@
 from PyDFlow.types.check import InputSpec
 import inspect
+from functools import wraps
 
 class task_decorator(object):
     """
@@ -60,7 +61,9 @@ class task_decorator(object):
                     for t, name 
                     in zip(self.input_types, inspect.getargspec(function)[0])]
 
-        return self.wrapper_class(function, self.task_class, self.output_types, self.input_spec, *(self.args), **(self.kwargs))
+        wrapped = self.wrapper_class(function, self.task_class, self.output_types, self.input_spec, *(self.args), **(self.kwargs))
+        # fix the name and docstring of the wrapped function.
+        return wraps(function)(wrapped)
 
 
 class TaskWrapper:
@@ -69,16 +72,21 @@ class TaskWrapper:
         self.output_types = output_types
         self.input_spec = input_spec
         self.task_class = task_class
+        self._taskname = func.__name__
 
     def __call__(self, *args, **kwargs):
         # Set up the input/output channels and the tasks, plugging
         # them all together and validating types
+
+        kwargs['taskname']=self._taskname
+
         task = self.task_class(self.func, self.output_types, self.input_spec,
                                 *args, **kwargs)
-
         # Unpack the tuple if necessary
         if len(task._outputs) == 1:
             return task._outputs[0]
         else:
             return task._outputs
 
+    def __repr__(self):
+        return "<PyDFlow Function: %s>" % repr(self._taskname)

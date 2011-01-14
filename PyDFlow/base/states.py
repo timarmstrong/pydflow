@@ -13,3 +13,8 @@ CH_CLOSED, CH_CLOSED_WAITING, \
 
 #TODO: garbage collection state: destroy the data if no output tasks depend
 # on it?
+
+#================================#
+# Channel modes for prepare call #
+#================================#
+M_READ, M_WRITE, M_READWRITE = range(3)

@@ -90,9 +90,9 @@ def merge_sort(xs):
     
 def main():
 #    logging.basicConfig(level=logging.DEBUG)
-    #print "One(): %d" % one()[0].get()
-    #print "1 + 1 = %d" % add(one(), one())[0].get()
-    #print "1 + (1 + 1) = %d" % add(one(), add(one(), one()))[0].get()
+    print "One(): %d" % one().get()
+    print "1 + 1 = %d" % add(one(), one()).get()
+    print "1 + (1 + 1) = %d" % add(one(), add(one(), one())).get()
 
     print add(Int.bind(1), Int.bind(2)).get()
     
