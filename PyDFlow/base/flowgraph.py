@@ -200,8 +200,34 @@ class Channel(flvar):
         self._out_tasks = []
         self._state = CH_CLOSED
         self._bound = _bind_location
+   
+    def __ilshift__(self, oth):
+        """
+        "Assigns" the channel on the right hand side to this one.
+        More accurately, merges the data from the RHS channel
+        into the LHS channel, 
+        making sure that the data from the RHS channel
+        is redirected to the LHS channel and also that channel
+        retains all the same settings as the LHS channel.
+        """
+        #TODO: logic
+        oth._replacewith(self)
     
-    
+    def __irshift__(self, oth):
+        """
+        Same as ilshift but injecting LHS into RHS
+        """
+        self._replacewith(oth)
+
+    def _replacewith(self, other):
+        """
+        Replace this channel with a different channel in all
+        input tasks.
+        """
+        # TODO: replace operator on input tasks
+        # TODO: negotiation
+        #TODO: invalid state
+
     def _prepare(self, mode):
         """
         Called by an input or output task to indicate that the

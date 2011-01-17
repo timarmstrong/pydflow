@@ -89,7 +89,7 @@ def merge_sort(xs):
         
     
 def main():
-#    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
     print "One(): %d" % one().get()
     print "1 + 1 = %d" % add(one(), one()).get()
     print "1 + (1 + 1) = %d" % add(one(), add(one(), one())).get()

@@ -23,13 +23,9 @@ class FutureChannel(AtomicChannel):
         a good thing?
         """
         # replace bound var with future
-        if not isinstance(self._bound, Future):
-            fut = Future()
-            fut.set(self._bound)
-            self._bound = fut
         super(FutureChannel, self)._open_bound_read()
 
-def local_exec(task):
+def local_exec(task, input_values):
     # Update state so we know its running
     acquire_global_mutex()
     task._state = T_RUNNING
@@ -39,7 +35,7 @@ def local_exec(task):
     # In general need to work out failure handling logic
     try: 
         # Run the function in this thread
-        return_val = task.func(*(task._input_values))
+        return_val = task.func(*(input_values))
     except Exception, e:
         task.state = T_ERROR
         raise Exception("Loclly executed task threw exception %s" % repr(e))
@@ -52,8 +48,8 @@ def local_exec(task):
     # Fill in all the output channels
     if len(task._outputs) == 1:
         # Update current state, then pass data to channels
-        self.state = T_DONE_SUCCESS
-        task.output_channels[0].set(return_val)
+        task.state = T_DONE_SUCCESS
+        task._outputs[0]._set(return_val)
     else:
         try:  
             return_vals = tuple(return_val)
@@ -66,9 +62,9 @@ def local_exec(task):
             raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
 
         # Update current state, then pass data to channels
-        self.state = T_DONE_SUCCESS
+        task.state = T_DONE_SUCCESS
         for val, chan in zip(return_vals, task._outputs) :
-            chan.set(val)
+            chan._set(val)
     #TODO: handle exceptions that occur when setting channel
     
 
@@ -80,7 +76,9 @@ class FuncTask(AtomicTask):
 
     def _exec(self):
         #TODO: select execution backend, run me!
-        self.__input_values = self._gather_input_values()
-        LocalExecutor.execute_async(self)
+        # Build closure for executor
+        def do():
+            local_exec(self, self._gather_input_values())
+        LocalExecutor.execute_async(do)
 
 

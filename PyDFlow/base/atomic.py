@@ -59,9 +59,18 @@ class AtomicTask(Task):
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
-
         # __future stores a handle to the data
-        self._future = None
+        if self._bound:
+            if not isinstance(self._bound, Future):
+                self._future = Future()
+                # If a non-future data item is provided as the binding,
+                # we should pack it into a future (this avoids users)
+                # having to write boilerplate to put things into futures
+                self._future.set(self._bound)
+            else:
+                self._future = self._bound
+        else:
+            self._future = Future()
 
     def _register_input(self, input_task):
         """ 
@@ -79,6 +88,7 @@ class AtomicChannel(Channel):
         """
         Set up the future variable to be written into.
         """
+        logging.debug("%s prepared" % (repr(self)))
         if mode == M_READWRITE:
             #TODO: exception type
             raise Exception("M_READWRITE is not valid for atomic channels")
@@ -91,7 +101,7 @@ class AtomicChannel(Channel):
                 if self._bound:
                     self._open_bound_write()
                 else:
-                    self._open_bound()
+                    self._open_write()
                 self._state = CH_OPEN_W
             elif self._state == CH_OPEN_W or self._state == CH_OPEN_RW:
                 pass
@@ -128,8 +138,7 @@ class AtomicChannel(Channel):
         setting state.
         Override to implement alternative logic.
         """
-        self._future = self._bound
-        if self.bound.isSet():
+        if self._future.isSet():
             #TODO: exception type
             raise Exception("Bound to future that is already filled")
 
@@ -140,7 +149,9 @@ class AtomicChannel(Channel):
         setting state.
         Override to implement alternative logic.
         """
-        self._future = Future()
+        if self._future.isSet():
+            #TODO: exception type
+            raise Exception("Write to filled future channel")
 
     def _open_bound_read(self):
         """
@@ -149,10 +160,10 @@ class AtomicChannel(Channel):
         setting state.
         Override to implement alternative logic.
         """
-        self._future = self._bound
-        if not self._bound.isSet():
+        if not self._future.isSet():
              #TODO: exception type
-            raise Exception("bound unset future as input channel, cannot preprate")
+            raise Exception("bound unset future as input channel, cannot prepare")
+
     def _open_read(self):
         """
         Called when we want to prepare the channel for reading, and it is not
@@ -160,11 +171,22 @@ class AtomicChannel(Channel):
         setting state.
         Override to implement alternative logic.
         """
-        pass
+        if not self._future.isSet():
+             #TODO: exception type
+            raise Exception("input channel has no data, cannot prepare")
         
+    def _set(self, val):
+        """
+        Function to be called by input task when the data becomes available
+        """
+        self._future.set(val)
 
     def get(self):
-        self.force()
+        acquire_global_mutex()
+        try: 
+            self._force()
+        finally:
+            release_global_mutex()
         return self._future.get() # block on future
     
     def _force(self):
