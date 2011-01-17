@@ -142,10 +142,11 @@ class Task(object):
         Determines what happens when an input channel changes state.
         """
         # Check may be overly defensive here
-        ix = self._inputs.index(input)
-        if not self._inputs_ready[ix]:
-            self._inputs_notready_count -= 1
-            self._inputs_ready[ix] = True
+        for ix, inp in enumerate(self._inputs):
+            if inp == input:
+                if not self._inputs_ready[ix]:
+                    self._inputs_notready_count -= 1
+                    self._inputs_ready[ix] = True
 
     def force(self):
         """

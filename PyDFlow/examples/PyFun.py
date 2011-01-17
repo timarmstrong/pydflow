@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import datetime
 from PyDFlow.PyFun import *
 import logging
@@ -23,7 +24,7 @@ def add1(a, b):
 
 @func((Int), (Int, Int))
 def nextfib(f1, f2):
-    print f1 + f2
+#    print f1 + f2
     return f1 + f2
 
 def fib(n):
@@ -81,10 +82,10 @@ def merge_sort(xs):
             for a, b 
             in zip(odds, evens)]
             + spare)
-        print "Down to level of %d numbers" % len(lol)
+#        print "Down to level of %d numbers" % len(lol)
 
     graph_built_t = datetime.datetime.now()
-    print "%d apps built into graph in %s" % (app_count, graph_built_t - start_t)
+#    print "%d apps built into graph in %s" % (app_count, graph_built_t - start_t)
     return lol[0]
         
     
@@ -92,18 +93,15 @@ def main():
     #logging.basicConfig(level=logging.DEBUG)
     print "One(): %d" % one().get()
     a = one()
-    a.get()
     print "a = 1; a + a = %d" % add(a,a).get()
-
     print "1 + 1 = %d" % add(one(), one()).get()
     print "1 + (1 + 1) = %d" % add(one(), add(one(), one())).get()
-
     print "1 + 2 = %d" % add(Int.bind(1), Int.bind(2)).get()
     
     for n in range(10):
         print "Fib(%d) = %d" % (n, fib(n).get())
     
-    xs = [random.randint(0, 10000) for i in range(1000)]
+    xs = [random.randint(0, 10000) for i in range(100)]
     print "sorted: %s" % repr(merge_sort(xs).get())
 
     print "Done."
