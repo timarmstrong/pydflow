@@ -5,6 +5,8 @@ import PyDFlow.base.flowgraph as gr
 from PyDFlow.base.states import *
 import LocalExecutor
 
+import logging
+
 
 
 class FutureChannel(AtomicChannel):
@@ -27,6 +29,7 @@ class FutureChannel(AtomicChannel):
 
 def local_exec(task, input_values):
     # Update state so we know its running
+    logging.debug("Running task %s with inputs %s" %(repr(task), repr(input_values)))
     acquire_global_mutex()
     task._state = T_RUNNING
     release_global_mutex()
@@ -77,6 +80,8 @@ class FuncTask(AtomicTask):
     def _exec(self):
         #TODO: select execution backend, run me!
         # Build closure for executor
+        for o in self._outputs:
+            o._prepare(M_WRITE)
         def do():
             local_exec(self, self._gather_input_values())
         LocalExecutor.execute_async(do)

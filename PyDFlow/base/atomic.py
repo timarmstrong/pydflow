@@ -12,18 +12,17 @@ class AtomicTask(Task):
     """
     def __init__(self, *args, **kwargs):
         super(AtomicTask, self).__init__(*args, **kwargs)
-        self.__future = None
         if self._all_inputs_ready():
-            self.state = T_DATA_READY
+            self._state = T_DATA_READY
 
-    def _input_readable(self, oldstate, newstate):
+    def _input_readable(self, input, oldstate, newstate):
         """
         Overridden, we make sure that the task state is appropriately
         updated.
         Assume global lock is already held
         """
-        super(AtomicTask, self)._input_readable(self, input, oldstate, newstate)
-        if self._all_inputs_ready():
+        super(AtomicTask, self)._input_readable(input, oldstate, newstate)
+        if self._inputs_notready_count == 0:
             if self._state == T_INACTIVE:
                 self._state = T_DATA_READY
             elif self._state == T_DATA_WAIT:
@@ -43,16 +42,6 @@ class AtomicTask(Task):
             else:
                 input_data.append(inp.get())
         return input_data
-    
-    def _input_readable(self, input, oldstate, newstate):
-        """
-        """
-        super(AtomicTask, self)._input_readable(self, input, oldstate, newstate)
-        if self._inputs_notready_count == 0:
-            if self._state == T_INACTIVE:
-                self._state = T_DATA_READY
-            elif self._state == T_DATA_WAIT:
-                self._startme()
 
 
 
@@ -60,7 +49,7 @@ class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
         # __future stores a handle to the data
-        if self._bound:
+        if self._bound is not None:
             if not isinstance(self._bound, Future):
                 self._future = Future()
                 # If a non-future data item is provided as the binding,
@@ -69,6 +58,8 @@ class AtomicChannel(Channel):
                 self._future.set(self._bound)
             else:
                 self._future = self._bound
+            if self._future.isSet():
+                    self._state = CH_DONE_FILLED
         else:
             self._future = Future()
 
@@ -97,12 +88,7 @@ class AtomicChannel(Channel):
             # State will be open for writing until something
             # is written into the file.
             if self._state == CH_CLOSED or self._state == CH_CLOSED_WAITING:
-                # create a future if needed
-                if self._bound:
-                    self._open_bound_write()
-                else:
-                    self._open_write()
-                self._state = CH_OPEN_W
+                self._open_write()
             elif self._state == CH_OPEN_W or self._state == CH_OPEN_RW:
                 pass
             else:
@@ -111,75 +97,59 @@ class AtomicChannel(Channel):
                         self._state)
             #TODO: what if the channel is destroyed?
         elif mode == M_READ:
-            if self._state == CH_CLOSED:
-                if self._bound: 
-                    # Open, using bound location
-                    self._open_bound_read()
-                    self._state = CH_OPEN_R
-                else:
-                    # No data in channel and nothing is being written here
-                    #TODO: exception type
-                    raise Exception("Want to read from channel, but no data associated")
-            elif self._state == CH_OPEN_R or self._state == CH_OPEN_RW:
+            if self._state == CH_OPEN_R or self._state == CH_OPEN_RW:
                 pass
             elif self._state == CH_DONE_FILLED:
                 self._open_read()
-                self._state == CH_OPEN_R
             else:
                 #TODO: exception type
                 raise Exception("Read from channel which does not yet have data assoc")
         else:
             raise ValueError("Invalid mode to AtomicChannel._prepare %d" % mode)
 
-    def _open_bound_write(self):
-        """
-        Called when we want to prepare the channel for writing, and it is bound
-        to something.  This does any required setup.  not responsible for 
-        setting state.
-        Override to implement alternative logic.
-        """
-        if self._future.isSet():
-            #TODO: exception type
-            raise Exception("Bound to future that is already filled")
 
     def _open_write(self):
         """
-        Called when we want to prepare the channel for writing, and it is not
-        bound.  This does any required setup.  not responsible for 
+        Called when we want to prepare the channel for writing.  
+        This does any required setup.  not responsible for 
         setting state.
         Override to implement alternative logic.
         """
         if self._future.isSet():
             #TODO: exception type
             raise Exception("Write to filled future channel")
+        self._state = CH_OPEN_W
 
-    def _open_bound_read(self):
-        """
-        Called when we want to prepare the channel for reading, and it is bound
-        to something.  This does any required setup.  not responsible for 
-        setting state.
-        Override to implement alternative logic.
-        """
-        if not self._future.isSet():
-             #TODO: exception type
-            raise Exception("bound unset future as input channel, cannot prepare")
 
     def _open_read(self):
         """
-        Called when we want to prepare the channel for reading, and it is not
-        bound.  This does any required setup.  not responsible for 
+        Called when we want to prepare the channel for reading.  
+        This does any required setup.  not responsible for 
         setting state.
         Override to implement alternative logic.
         """
         if not self._future.isSet():
              #TODO: exception type
             raise Exception("input channel has no data, cannot prepare")
+        self._state == CH_OPEN_R
         
     def _set(self, val):
         """
         Function to be called by input task when the data becomes available
         """
-        self._future.set(val)
+        oldstate = self._state
+        if oldstate in [CH_OPEN_W, CH_OPEN_RW]:
+            self._future.set(val)
+            self._state = CH_DONE_FILLED
+            #update the state and notify output tasks
+
+            for t in self._out_tasks:
+                t._input_readable(self, oldstate, CH_DONE_FILLED)
+        else:
+            #TODO: exception type
+            raise Exception("Invalid state %d when atomic_channel set" % self._state)
+            
+        
 
     def get(self):
         acquire_global_mutex()
@@ -192,9 +162,12 @@ class AtomicChannel(Channel):
     def _force(self):
         logging.debug("Atomic Channel forced")
         if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
-            if self._bound and self._in_tasks == []:
-                # Data might be there
-                self._prepare(M_READ)
+            if self._bound is not None and self._in_tasks == []:
+                if self._future.isSet():
+                    # Data might be there, assume that binding was correct
+                    self._state = CH_DONE_FILLED
+                else: 
+                    raise Exception("Forcing bound channel with no data and no input tasks")
             elif self._in_tasks != []:
                 # Enable task to be run, but
                 # input tasks should be run first
@@ -209,7 +182,8 @@ class AtomicChannel(Channel):
             # Already forced, just wait
             pass
         elif self._state in [CH_OPEN_W, CH_DONE_FILLED]:
-            self._prepare(M_READ)
+            # In process of being filled, just wait
+            pass
         elif self._state == CH_ERROR:
             #TODO: reraise exception
             # retry?

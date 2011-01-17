@@ -67,7 +67,6 @@ class Task(object):
 
 
     def __setup_inputs(self, input_spec):
-        global graph_mutex
         self._input_spec = input_spec
         not_ready_count = 0
         inputs_ready = []
@@ -76,6 +75,8 @@ class Task(object):
             inputs_ready.append(ready)
             if not ready: 
                 not_ready_count += 1
+        logging.debug("%d inputs, %d not ready for task %s" % (
+                len(self._inputs), not_ready_count, repr(self)))
         self._inputs_notready_count = not_ready_count
         self._inputs_ready = inputs_ready
 
@@ -142,9 +143,9 @@ class Task(object):
         """
         # Check may be overly defensive here
         ix = self._inputs.index(input)
-        if not self._inputs_ready[i]:
+        if not self._inputs_ready[ix]:
             self._inputs_notready_count -= 1
-            self._inputs_ready[i] = True
+            self._inputs_ready[ix] = True
 
     def force(self):
         """
@@ -160,11 +161,13 @@ class Task(object):
             graph_mutex.release()
 
     def _force(self):
-        logging.debug("Task %s forced" % repr(self))
+        logging.debug("Task %s forced, state is %d" % (repr(self), self._state))
         if self._state == T_DATA_READY:
             # Just start it running
+            logging.debug("Task %s forced: running immediately" % repr(self))
             self._startme()
         elif self._state == T_INACTIVE:
+            logging.debug("Task %s forced: starting dependencies" % repr(self))
             # Force all inputs
             self._state = T_DATA_WAIT
             for inp, spec in zip(self._inputs, self._input_spec):
@@ -172,6 +175,8 @@ class Task(object):
                     # if input is filled or already filling, method 
                     # should do nothing
                     inp._force() 
+        else:
+            logging.debug("Task %s forced: no action needed" % repr(self))
     
     def state(self):
         """
@@ -227,6 +232,7 @@ class Channel(flvar):
         # TODO: replace operator on input tasks
         # TODO: negotiation
         #TODO: invalid state
+        NotImplementedException("Channel replacement not implemented in this channel")
 
     def _prepare(self, mode):
         """
@@ -267,9 +273,10 @@ class Channel(flvar):
         tasks regardless.  Should be overridden with an
         implementation that checks that states are legal, etc.
         
-        TODO: more sophisticated implementation?
         """
         self._out_tasks.append(output_task)
+        #TODO: right?
+        return self._state in [CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED]
 
     def add_input(self, input_task):
         global graph_mutex
@@ -327,5 +334,3 @@ class Channel(flvar):
         object or location.
         """
         return cls(_bind_location=location)
-
-

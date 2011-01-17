@@ -1,5 +1,5 @@
 from PyDFlow.base.decorators import task_decorator
-from graph import FuncTask
+from flowgraph import FuncTask
 
 class func(task_decorator):
     """

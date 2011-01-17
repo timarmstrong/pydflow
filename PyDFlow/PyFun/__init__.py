@@ -1,4 +1,4 @@
 from decorators import func
-import graph
+import flowgraph
 
-future = graph.FutureChannel
+future = flowgraph.FutureChannel

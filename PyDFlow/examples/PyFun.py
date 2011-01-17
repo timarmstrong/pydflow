@@ -89,12 +89,16 @@ def merge_sort(xs):
         
     
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    #logging.basicConfig(level=logging.DEBUG)
     print "One(): %d" % one().get()
+    a = one()
+    a.get()
+    print "a = 1; a + a = %d" % add(a,a).get()
+
     print "1 + 1 = %d" % add(one(), one()).get()
     print "1 + (1 + 1) = %d" % add(one(), add(one(), one())).get()
 
-    print add(Int.bind(1), Int.bind(2)).get()
+    print "1 + 2 = %d" % add(Int.bind(1), Int.bind(2)).get()
     
     for n in range(10):
         print "Fib(%d) = %d" % (n, fib(n).get())
