@@ -49,6 +49,8 @@ class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
         # __future stores a handle to the data
+        #TODO: move this logic to FutureChannel,
+        # binding shouldn't work this way for e.g. file channels.
         if self._bound is not None:
             if not isinstance(self._bound, Future):
                 self._future = Future()
@@ -111,8 +113,9 @@ class AtomicChannel(Channel):
     def _open_write(self):
         """
         Called when we want to prepare the channel for writing.  
-        This does any required setup.  not responsible for 
-        setting state.
+        This does any required setup.  Not responsible for 
+        state-related logic, but is responsible for ensuring
+        that a write will proceed correctly.
         Override to implement alternative logic.
         """
         if self._future.isSet():
@@ -124,8 +127,9 @@ class AtomicChannel(Channel):
     def _open_read(self):
         """
         Called when we want to prepare the channel for reading.  
-        This does any required setup.  not responsible for 
-        setting state.
+        This does any required setup.  Not responsible for 
+        state-related logic, but is responsible for ensuring
+        that a read will proceed correctly.
         Override to implement alternative logic.
         """
         if not self._future.isSet():
@@ -191,3 +195,14 @@ class AtomicChannel(Channel):
         else:
             #TODO: exception type
             raise Exception("Invalid state code: %d" % self._state)
+
+        def readable(self):
+            """
+            For atomic channels, it is readable either if it
+            has been filled or it is bound.
+            """
+            return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW]
+                or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] 
+                    and self._bound is not None and self._in_tasks == [])
+
+

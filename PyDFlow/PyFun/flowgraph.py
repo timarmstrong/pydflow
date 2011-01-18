@@ -1,7 +1,5 @@
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import acquire_global_mutex, release_global_mutex
-from PyDFlow.futures import Future
-import PyDFlow.base.flowgraph as gr
 from PyDFlow.base.states import *
 import LocalExecutor
 
@@ -14,18 +12,6 @@ class FutureChannel(AtomicChannel):
     def __init__(self, *args, **kwargs):
         super(FutureChannel, self).__init__(*args, **kwargs)
 
-    """
-    Channel to be used for passing local python variables between functions.
-    """
-    def _open_bound_read(self):
-        """
-        Want to be able to bind raw Python values to read from, rather than
-        just futures.  So, check to see if the provided value is a future or not
-        TODO: what if we wanted to actually operate on futures, is this 'magic' behaviour
-        a good thing?
-        """
-        # replace bound var with future
-        super(FutureChannel, self)._open_bound_read()
 
 def local_exec(task, input_values):
     # Update state so we know its running

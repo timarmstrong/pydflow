@@ -10,7 +10,7 @@ class func(task_decorator):
     and will tag the output of the function with the type
 
     E.g. 
-    @func((Int.sum), (Int.a, Int.b))
+    @func((Int), (Int, Int))
     def add (a, b):
         return a + b
     """

@@ -17,6 +17,7 @@ from PyDFlow.types import flvar
 from PyDFlow.types.check import validate_inputs
 
 from states import *
+from exceptions import *
 
 from threading import Lock
 
@@ -33,11 +34,6 @@ def release_global_mutex():
 
 
 
-class UnimplementedException(Exception):
-    def __init__(self, value):
-        self.parameter = value
-    def __str__(self):
-        return repr(self.parameter)
 
 class Task(object):
     def __init__(self, output_types, input_spec, *args, **kwargs):
@@ -233,7 +229,7 @@ class Channel(flvar):
         # TODO: replace operator on input tasks
         # TODO: negotiation
         #TODO: invalid state
-        NotImplementedException("Channel replacement not implemented in this channel")
+        UnimplementedException("Channel replacement not implemented in this channel")
 
     def _prepare(self, mode):
         """
@@ -327,6 +323,15 @@ class Channel(flvar):
         res = self._state
         graph_mutex.release()
         return res
+
+    def readable(self):
+        """
+        Returns a boolean indicating whether the channel
+        can be read from without blocking.
+
+        This should be overridden as it depends on the type of channel.
+        """
+        raise Unimplem
 
     @classmethod
     def bind(cls, location):

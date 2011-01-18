@@ -2,6 +2,8 @@
 Implements the logical types of channels (ie the type of the data
 being passed through them)
 """
+# Shorthand for the passthrough type
+_ = None
 
 class LogicalTypeError(ValueError):
     def __init__(self, *args, **kwargs):
