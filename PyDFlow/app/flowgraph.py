@@ -1,9 +1,11 @@
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
 from os.path import exists
 import os
 import tempfile
 import shutil
+from parse import *
 
 
 class FileChannel(AtomicChannel):
@@ -126,3 +128,63 @@ class LocalFileChannel(AtomicChannel):
         """
         #TODO: push up to superclass?
         return self._bound
+
+
+class AppTask(AtomicTask):
+    def __init__(self, func, output_types, input_spec,
+            *args, **kwargs):
+        super(AppTask, self).__init__(output_types, 
+                                input_spec, *args, **kwargs)
+        self._func = func
+    
+    def _exec(self):
+        # Lock while we gather up the input and output channels
+
+        #TODO: note, can the function really mess things up here 
+        # by calling "get()"
+        # or something similar on one of the input channels
+        input_data = self._gather_input_data()
+
+        # Create a dictionary of variable names to file paths
+        #TODO: what if input and output names overlap?
+        path_dict = dict(
+                [(spec.name, input_path)
+                    for input_path, spec 
+                    in zip(input_data, self._input_spec)
+                    if not spec.isRaw() and 
+                        FileChannel.isinstance(spec.swtype)]
+              + [("output_%d" % i, output_chan.file_path)
+                    for i, output_chan
+                    in enumerate(self.output_channels)] )
+        logging.debug("path_dict: " + repr(path_dict)) 
+                
+        cmd_string = self._func(*input_data)
+        #TODO: function should be able to also return a dictionary
+
+        # parse cmd_string, inject filenames, come up with a list of
+        # arguments for the task
+        call_args = parse_cmd_string(cmd_string, path_dict)
+        stdin, stdout, stderr = (None, None, None)
+
+        # TODO: set intermediate states - RUNNING, etc
+        self._state = T_QUEUED
+        # Launch the executable using backend module, attach a callback
+        app_executor.launch_app(self, call_args, 
+                    stdin, stdout, stderr)
+
+    def started_callback(self):
+        global graph_mutex
+        graph_mutex.acquire()
+        self._state = T_RUNNING
+        graph_mutex.release()
+
+    def finished_callback(self, popen):
+        # Set all the output channels, trusting executable to have
+        # done the right thing
+        # TODO: check that files were created?
+        for c in self.output_channels:
+            c.set(c.file_path)
+        #TODO: check exit status?
+        self.state = base.STATE_FINISHED 
+
+

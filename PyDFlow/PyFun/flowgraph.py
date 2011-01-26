@@ -38,7 +38,7 @@ def local_exec(task, input_values):
     # In general need to work out failure handling logic
     try: 
         # Run the function in this thread
-        return_val = task.func(*(input_values))
+        return_val = task._func(*(input_values))
     except Exception, e:
         task.state = T_ERROR
         raise Exception("Loclly executed task threw exception %s" % repr(e))
@@ -74,8 +74,7 @@ def local_exec(task, input_values):
 class FuncTask(AtomicTask):
     def __init__(self, func, output_types, input_spec, *args, **kwargs):
         super(FuncTask, self).__init__(output_types, input_spec, *args, **kwargs)
-        self.func = func
-        self.__input_values = None
+        self._func = func
 
     def _exec(self):
         #TODO: select execution backend, run me!
