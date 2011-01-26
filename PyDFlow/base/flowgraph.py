@@ -144,6 +144,14 @@ class Task(object):
                     self._inputs_notready_count -= 1
                     self._inputs_ready[ix] = True
 
+    def _output_replace(self, old, new):
+        """
+        Swap out an old output channel with a new one.
+        """
+        for i, o in enumerate(self._outputs):
+            if o is old:
+                self._outputs[i] = new
+
     def force(self):
         """
         Ensure that at some point in the future this task will start running.
@@ -213,23 +221,46 @@ class Channel(flvar):
         retains all the same settings as the LHS channel.
         """
         #TODO: logic
+        global graph_mutex
+        graph_mutex.acquire()
         oth._replacewith(self)
+        graph_mutex.release()
+        return self
     
     def __irshift__(self, oth):
         """
         Same as ilshift but injecting LHS into RHS
         """
+        global graph_mutex
+        graph_mutex.acquire()
         self._replacewith(oth)
+        graph_mutex.release()
+        return oth
 
     def _replacewith(self, other):
         """
         Replace this channel with a different channel in all
-        input tasks.
+        input tasks. We can assume that the other channel is
+        freshly created and no references are held to it.
+        The default behaviour will be to keep all the data 
+        and state associated with this channel, but make sure
+        that all tasks with output going into other are redirected 
+        here.
         """
-        # TODO: replace operator on input tasks
-        # TODO: negotiation
-        #TODO: invalid state
-        UnimplementedException("Channel replacement not implemented in this channel")
+        for t in self._in_tasks:
+            t._output_replace(self, other)
+        # TODO: right?
+        other._in_tasks = self._in_tasks
+        # This channel should no longer be used
+
+        #TODO: negotiation
+        self._invalidate()
+
+    def _invalidate(self):
+        self._state = CH_ERROR
+        self._future = None
+        self._bound = None
+
 
     def _prepare(self, mode):
         """

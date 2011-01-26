@@ -104,6 +104,10 @@ def main():
     xs = [random.randint(0, 10000) for i in range(100)]
     print "sorted: %s" % repr(merge_sort(xs).get())
 
+    x = Int()
+    x <<= add(a,a)
+    print "x = %d" % x.get()
+
     print "Done."
 
 if __name__ == "__main__":

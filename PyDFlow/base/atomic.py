@@ -9,6 +9,9 @@ import logging
 class AtomicTask(Task):
     """
     An atomic task can be bound to a future variable.
+    The state of the channel is synchronized with the state of
+    the future variable.  That is, the channel can only be read from if
+    the variable is unset and only written to if the variable is set
     """
     def __init__(self, *args, **kwargs):
         super(AtomicTask, self).__init__(*args, **kwargs)
@@ -48,22 +51,12 @@ class AtomicTask(Task):
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
-        # __future stores a handle to the data
-        #TODO: move this logic to FutureChannel,
-        # binding shouldn't work this way for e.g. file channels.
-        if self._bound is not None:
-            if not isinstance(self._bound, Future):
-                self._future = Future()
-                # If a non-future data item is provided as the binding,
-                # we should pack it into a future (this avoids users)
-                # having to write boilerplate to put things into futures
-                self._future.set(self._bound)
-            else:
-                self._future = self._bound
-            if self._future.isSet():
-                    self._state = CH_DONE_FILLED
-        else:
-            self._future = Future()
+        # Create the future
+        self._future = Future()
+        # __future stores a handle to the underlying data 
+        # future will be set exactly when the underlying data is
+        # ready for reading: this way the get() function can block
+        # on the future
 
     def _register_input(self, input_task):
         """ 
@@ -91,6 +84,7 @@ class AtomicChannel(Channel):
             # is written into the file.
             if self._state == CH_CLOSED or self._state == CH_CLOSED_WAITING:
                 self._open_write()
+                self._state = CH_OPEN_W
             elif self._state == CH_OPEN_W or self._state == CH_OPEN_RW:
                 pass
             else:
@@ -103,6 +97,7 @@ class AtomicChannel(Channel):
                 pass
             elif self._state == CH_DONE_FILLED:
                 self._open_read()
+                self._state == CH_OPEN_R
             else:
                 #TODO: exception type
                 raise Exception("Read from channel which does not yet have data assoc")
@@ -121,7 +116,6 @@ class AtomicChannel(Channel):
         if self._future.isSet():
             #TODO: exception type
             raise Exception("Write to filled future channel")
-        self._state = CH_OPEN_W
 
 
     def _open_read(self):
@@ -135,7 +129,6 @@ class AtomicChannel(Channel):
         if not self._future.isSet():
              #TODO: exception type
             raise Exception("input channel has no data, cannot prepare")
-        self._state == CH_OPEN_R
         
     def _set(self, val):
         """
@@ -201,8 +194,8 @@ class AtomicChannel(Channel):
             For atomic channels, it is readable either if it
             has been filled or it is bound.
             """
-            return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW]
-                or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] 
+            return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
+                or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
                     and self._bound is not None and self._in_tasks == [])
 
 

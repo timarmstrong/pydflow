@@ -1,6 +1,7 @@
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import acquire_global_mutex, release_global_mutex
 from PyDFlow.base.states import *
+from PyDFlow.futures import *
 import LocalExecutor
 
 import logging
@@ -11,6 +12,19 @@ class FutureChannel(AtomicChannel):
 
     def __init__(self, *args, **kwargs):
         super(FutureChannel, self).__init__(*args, **kwargs)
+        
+        # The bind variable for future channels will always be
+        # either a future, or contents for a future
+        if self._bound is not None:
+            if not isinstance(self._bound, Future):
+                # If a non-future data item is provided as the binding,
+                # we should pack it into a future (this avoids users)
+                # having to write boilerplate to put things into futures
+                self._future.set(self._bound)
+            else:
+                self._future = self._bound
+            if self._future.isSet():
+                    self._state = CH_DONE_FILLED
 
 
 def local_exec(task, input_values):
