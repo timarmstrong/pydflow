@@ -2,6 +2,7 @@ import subprocess
 import threading
 import Queue
 import logging
+import paths
 
 #TODO: no polling?
 POLL_INTERVAL = 0.1 # seconds between polling tasks when active
@@ -21,6 +22,7 @@ def ensure_init():
     global structure_lock, active_apps, monitor_t, init, work_queue
     structure_lock.acquire()
     if not init:
+        logging.debug("Initializing Local app task queue")
         active_apps = set()
         if LIFO:
             work_queue = Queue.LifoQueue()
@@ -89,39 +91,45 @@ class MonitorThread(threading.Thread):
 
 
 class AppQueueEntry(object):
-    def __init__(self, task, cmd_args, stdout_file, stdin_file, stderr_file):
+    def __init__(self, task):
         """
         Std*_file should all be file paths
         """
         self.task = task
-        self.cmd_args = cmd_args
-        self.stdout_file = stdout_file
-        self.stdin_file = stdin_file
-        self.stderr_file = stderr_file
         self.process = None
         self.exit_code = None
 
     def run(self):
+        global graph_mutex
+        task = self.task
+
+        cmd_args, stdin_file, stdout_file, stderr_file = task._prepare_command()
         if self.process is not None:
             raise Exception("Tried to run AppQueueEntry twice")
        
         # Open the file if the path is not None
         openFile = lambda fp, mode: fp and open(fp, mode)
-        self.stdin=openFile(self.stdin_file, 'r')
-        self.stdout=openFile(self.stdout_file, 'w')
-        self.stderr=openFile(self.stderr_file, 'w')
+        stdin=openFile(stdin_file, 'r')
+        stdout=openFile(stdout_file, 'w')
+        stderr=openFile(stderr_file, 'w')
 
-        logging.debug("Launching %s" % repr(self.cmd_args))
+        logging.debug("Launching %s" % repr(cmd_args))
         # launch the process
-        self.process = subprocess.Popen(self.cmd_args,
-            stdin = self.stdin, stdout = self.stdout,  
-            stderr = self.stderr,
+        
+        exc = paths.lookup(cmd_args[0])
+        if exc is not None:
+            # Use the binary we just looked up, otherwise
+            # use the OS's resolution mechanism
+            cmd_args[0] = exc
+        self.process = subprocess.Popen(cmd_args,
+            stdin = stdin, stdout = stdout,  
+            stderr = stderr,
             close_fds=True # don't inherit any open files this
                            # process may have. TODO: might not
                            # work on windows
             )
         # Don't need just-opened file descriptors in this process now
-        for f in [self.stdin, self.stderr, self.stdout]:
+        for f in [stdin, stderr, stdout]:
             if f is not None:
                 f.close()
         self.task.started_callback()
@@ -138,7 +146,7 @@ class AppQueueEntry(object):
         self.task.finished_callback(self.process)
 
 
-def launch_app(task, cmd_args, stdin_file=None, stdout_file=None, stderr_file=None):
+def launch_app(task):
     """
     Launch a process using Popen, with cmd_args
     
@@ -150,8 +158,8 @@ def launch_app(task, cmd_args, stdin_file=None, stdout_file=None, stderr_file=No
     options std*_file arguments.
     """
     ensure_init()
-
-    entry = AppQueueEntry(task, cmd_args, stdout_file, stdin_file, stderr_file)
+    logging.debug("Added app %s to work queue" % repr(task))
+    entry = AppQueueEntry(task)
     work_added.acquire()
     work_queue.put(entry)
     work_added.notify()

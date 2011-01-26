@@ -1,11 +1,14 @@
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
+from PyDFlow.base.states import *
 from os.path import exists
 import os
 import tempfile
 import shutil
 from parse import *
+import LocalExecutor as localexec
+from parse import parse_cmd_string
 
 
 class FileChannel(AtomicChannel):
@@ -52,7 +55,7 @@ class FileChannel(AtomicChannel):
     
     def _open_read(self):
         #TODO: exception types
-        if not self._future.isSet() 
+        if not self._future.isSet():
             raise Exception("Reading from unset file channel")
         elif not self._fileExists():
             raise Exception("Reading from nonexistent file")
@@ -61,6 +64,14 @@ class FileChannel(AtomicChannel):
        raise UnimplementedException("_fileExists not overriden on file \
                 channel object") 
 
+
+    def _has_data(self):
+        """
+        Check to see if it is possible to start reading from this
+        channel now
+        """
+        return self._fileExists()
+
     def __del__(self):
         """
         When garbage collection happens, clean up temporary files.
@@ -68,6 +79,7 @@ class FileChannel(AtomicChannel):
         Note: we can assume that 
         """
         # Don't lock, as GC was called can assume that no references held
+        logging.debug("__del__ called on File channel")
         if self._temp_created: 
              self._cleanup_tmp()
 
@@ -83,7 +95,10 @@ class FileChannel(AtomicChannel):
     def _cleanup_tmp(self):
         raise UnimplementedException("_cleanup_tmp was not overridden")
 
-class LocalFileChannel(AtomicChannel):
+    def _write_done(self):
+        self._set(self._bound)
+
+class LocalFileChannel(FileChannel):
     def __init__(self, *args, **kwargs):
         super(LocalFileChannel, self).__init__(*args, **kwargs)
 
@@ -91,7 +106,7 @@ class LocalFileChannel(AtomicChannel):
         return open(self.get(), 'r')
 
     def _fileExists(self):
-        if self._future.isSet():
+        if self._bound is not None:
             return exists(self._bound)
         else:
             return False
@@ -136,6 +151,7 @@ class AppTask(AtomicTask):
         super(AppTask, self).__init__(output_types, 
                                 input_spec, *args, **kwargs)
         self._func = func
+        self._input_data = None
     
     def _exec(self):
         # Lock while we gather up the input and output channels
@@ -143,34 +159,54 @@ class AppTask(AtomicTask):
         #TODO: note, can the function really mess things up here 
         # by calling "get()"
         # or something similar on one of the input channels
-        input_data = self._gather_input_data()
+        logging.debug("Gathering input values for %s" % repr(self))
+        self._input_data = self._gather_input_values()
+        logging.debug("Input values were %s" % repr(self._input_data))
+        
 
+        # TODO: set intermediate states - RUNNING, etc
+        self._state = T_QUEUED
+        
+        logging.debug("Starting an AppTask")
+        # Launch the executable using backend module, attach a callback
+        localexec.launch_app(self)
+    
+    def _prepare_command(self):
+        """
+        Initializes 
+        """
+        graph_mutex.acquire()
+        for o in self._inputs:
+            o._prepare(M_READ)
+        # Ensure outputs can be written to
+        for o in self._outputs:
+            o._prepare(M_WRITE)
+       
+        logging.debug(repr(zip(self._input_data, self._input_spec)))
         # Create a dictionary of variable names to file paths
         #TODO: what if input and output names overlap?
         path_dict = dict(
                 [(spec.name, input_path)
                     for input_path, spec 
-                    in zip(input_data, self._input_spec)
-                    if not spec.isRaw() and 
-                        FileChannel.isinstance(spec.swtype)]
-              + [("output_%d" % i, output_chan.file_path)
-                    for i, output_chan
-                    in enumerate(self.output_channels)] )
-        logging.debug("path_dict: " + repr(path_dict)) 
-                
-        cmd_string = self._func(*input_data)
+                    in zip(self._input_data, self._input_spec)
+                    if (not spec.isRaw()) and 
+                        spec.fltype.issubclassof(FileChannel)]
+              + [("output_%d" % i, output._bound)
+                    for i, output
+                    in enumerate(self._outputs)] )
+        logging.debug("% s path_dict: %s" % (repr(self), repr(path_dict)))
+        
+        cmd_string = self._func(*self._input_data)
         #TODO: function should be able to also return a dictionary
-
+        # no longer touching graph
+        graph_mutex.release()
+        
         # parse cmd_string, inject filenames, come up with a list of
         # arguments for the task
         call_args = parse_cmd_string(cmd_string, path_dict)
-        stdin, stdout, stderr = (None, None, None)
-
-        # TODO: set intermediate states - RUNNING, etc
-        self._state = T_QUEUED
-        # Launch the executable using backend module, attach a callback
-        app_executor.launch_app(self, call_args, 
-                    stdin, stdout, stderr)
+        #TODO: add in redirection
+        stdin_file, stdout_file, stderr_file = (None, None, None)
+        return call_args, stdin_file, stdout_file, stderr_file
 
     def started_callback(self):
         global graph_mutex
@@ -182,9 +218,12 @@ class AppTask(AtomicTask):
         # Set all the output channels, trusting executable to have
         # done the right thing
         # TODO: check that files were created?
-        for c in self.output_channels:
-            c.set(c.file_path)
+        global graph_mutex
+        graph_mutex.acquire()
         #TODO: check exit status?
-        self.state = base.STATE_FINISHED 
+        for c in self._outputs:
+            c._write_done()
+        self.state = T_DONE_SUCCESS
+        graph_mutex.release()
 
 

@@ -26,6 +26,13 @@ class FutureChannel(AtomicChannel):
             if self._future.isSet():
                     self._state = CH_DONE_FILLED
 
+    def _has_data(self):
+        """
+        Check to see if it is possible to start reading from this
+        channel now
+        """
+        return self._future.isSet()
+
 
 def local_exec(task, input_values):
     # Update state so we know its running
@@ -77,8 +84,11 @@ class FuncTask(AtomicTask):
         self._func = func
 
     def _exec(self):
+        logging.debug("Starting a FuncTask")
         #TODO: select execution backend, run me!
         # Build closure for executor
+        for o in self._inputs:
+            o._prepare(M_READ)
         for o in self._outputs:
             o._prepare(M_WRITE)
         def do():

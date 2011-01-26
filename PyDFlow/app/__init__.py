@@ -1,4 +1,5 @@
 import flowgraph
 from decorator import app
-
-swfile = flowgraph.FileChannel
+from paths import add_path, set_paths
+flfile = flowgraph.FileChannel
+localfile = flowgraph.LocalFileChannel

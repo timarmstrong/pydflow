@@ -1,6 +1,7 @@
 from flowgraph import Task, Channel
 from states import *
 from PyDFlow.futures.futures import Future
+from PyDFlow.base.exceptions import *
 from flowgraph import acquire_global_mutex, release_global_mutex
 
 import logging
@@ -155,16 +156,20 @@ class AtomicChannel(Channel):
         finally:
             release_global_mutex()
         return self._future.get() # block on future
-    
+
+    def _has_data(self):
+        raise UnimplementedException("_has_data not overridden")
+
     def _force(self):
         logging.debug("Atomic Channel forced")
         if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
             if self._bound is not None and self._in_tasks == []:
-                if self._future.isSet():
+                if self._has_data():
                     # Data might be there, assume that binding was correct
-                    self._state = CH_DONE_FILLED
+                    self._prepare(M_WRITE)
+                    self._set(self._bound)
                 else: 
-                    raise Exception("Forcing bound channel with no data and no input tasks")
+                    raise Exception("Forcing bound channel with no associated data")
             elif self._in_tasks != []:
                 # Enable task to be run, but
                 # input tasks should be run first

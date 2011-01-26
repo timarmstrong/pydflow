@@ -278,7 +278,7 @@ class Channel(flvar):
         """
         pass
         #TODO
-    
+
     def _register_input(self, input_task):
         """
         called when a task wants to write to this channel

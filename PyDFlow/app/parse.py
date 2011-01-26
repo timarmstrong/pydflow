@@ -1,7 +1,15 @@
 import logging
 
 def parse_cmd_string(cmd_string, path_dict):
-    
+    """
+    Parses a command string and returns:
+    (command name, command arguments as a list)
+
+    cmd_string the string returned by an executed app function
+    path_dict is a dictionary mapping input/output argument names to
+    file paths
+    """
+
     #tokens: quote delimited strings, all other tokens are separated
     # by spaces. While in quote, \", \' and \\ are escape sequences
     in_quote = None
@@ -12,6 +20,8 @@ def parse_cmd_string(cmd_string, path_dict):
                       # so we keep a separate bool here for that case
     escaped = False
     substitute_path = False
+    
+    first = True
     for c in cmd_string:
         if in_quote:
             if escaped:
@@ -27,7 +37,12 @@ def parse_cmd_string(cmd_string, path_dict):
             # not in quote
             if c.isspace(): # end of current token
                 if in_token: # if this was the end of a token
-                    tokens.append(process_token(curr_tok, path_dict, substitute_path))
+                    if tokens == []:
+                        # don't process command name
+                        tokens.append(''.join(curr_tok))
+                        first = False
+                    else: 
+                        tokens.append(process_token(curr_tok, path_dict, substitute_path))
                     curr_tok = []
                     in_token = False
                     substitute_path = False
@@ -42,7 +57,12 @@ def parse_cmd_string(cmd_string, path_dict):
     if in_quote:
         raise Exception("Unclosed quote %s in command string: %s" % (in_quote, cmd_string))
     if in_token:
-        tokens.append(process_token(curr_tok, path_dict, substitute_path))
+        if tokens == []:
+            # don't process command name
+            tokens.append(''.join(curr_tok))
+            first = False
+        else:
+            tokens.append(process_token(curr_tok, path_dict, substitute_path))
 
     logging.debug("Given pathname dict %s and cmdstring %s, result was %s" % (
             repr(path_dict), cmd_string, repr(tokens)))
