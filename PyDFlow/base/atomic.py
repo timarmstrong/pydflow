@@ -44,7 +44,7 @@ class AtomicTask(Task):
             if spec.isRaw():
                 input_data.append(inp)
             else:
-                input_data.append(inp.get())
+                input_data.append(inp._get())
         return input_data
 
 
@@ -156,6 +156,15 @@ class AtomicChannel(Channel):
         finally:
             release_global_mutex()
         return self._future.get() # block on future
+
+    def _get(self):
+        """
+        For internal use only: get directly from local future, don't
+        bother forcing or locking or anything.
+        Should have graph lock first.
+        Only call when you are sure the channel has data ready for you.
+        """
+        return self._future.get()
 
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")

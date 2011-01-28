@@ -4,7 +4,7 @@ import datetime
 import sys
 import logging 
 import PyDFlow.app.paths as app_paths
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 app_paths.add_path("./PyDFlow/examples/mergesort/")
 
 intfile = localfile.subtype()
@@ -54,8 +54,7 @@ def main():
     graph_built_t = datetime.datetime.now()
 
     print "%d apps built into graph in %s" % (app_count, graph_built_t - start_t)
-
-    print output
+    
     output.force()
     fill_started_t = datetime.datetime.now()
     print "Sorted file is being written to at %s" % output.get()

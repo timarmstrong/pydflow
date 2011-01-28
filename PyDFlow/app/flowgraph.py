@@ -96,6 +96,7 @@ class FileChannel(AtomicChannel):
         raise UnimplementedException("_cleanup_tmp was not overridden")
 
     def _write_done(self):
+        logging.debug("Write done on %s" % repr(self))
         self._set(self._bound)
 
 class LocalFileChannel(FileChannel):
@@ -160,6 +161,7 @@ class AppTask(AtomicTask):
         # by calling "get()"
         # or something similar on one of the input channels
         logging.debug("Gathering input values for %s" % repr(self))
+        logging.debug("Inputs: %s" %(repr(self._inputs)))
         self._input_data = self._gather_input_values()
         logging.debug("Input values were %s" % repr(self._input_data))
         
@@ -218,6 +220,7 @@ class AppTask(AtomicTask):
         # Set all the output channels, trusting executable to have
         # done the right thing
         # TODO: check that files were created?
+        logging.debug("%s finished" % repr(self))
         global graph_mutex
         graph_mutex.acquire()
         #TODO: check exit status?

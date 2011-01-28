@@ -91,8 +91,10 @@ class FuncTask(AtomicTask):
             o._prepare(M_READ)
         for o in self._outputs:
             o._prepare(M_WRITE)
+        # grab the input values while we have a lock
+        input_values = self._gather_input_values()
         def do():
-            local_exec(self, self._gather_input_values())
+            local_exec(self, input_values)
         LocalExecutor.execute_async(do)
 
 
