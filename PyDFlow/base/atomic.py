@@ -49,6 +49,7 @@ class AtomicTask(Task):
 
 
 
+
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
@@ -58,6 +59,9 @@ class AtomicChannel(Channel):
         # future will be set exactly when the underlying data is
         # ready for reading: this way the get() function can block
         # on the future
+
+        # Whether the backing storage is reliable
+        self._reliable = True
 
     def _register_input(self, input_task):
         """ 
@@ -71,6 +75,17 @@ class AtomicChannel(Channel):
         else:
             self._in_tasks.append(input_task)
 
+    def _register_output(self, output_task):
+        """
+        Don't need to track output task for notifications if chan isreliable.
+        """
+        done = self._state in [CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED]
+        if done and self._reliable:
+            return True
+        else:
+            self._out_tasks.append(output_task)
+            #TODO: right?
+            return done
     def _prepare(self, mode):
         """
         Set up the future variable to be written into.
@@ -143,6 +158,10 @@ class AtomicChannel(Channel):
 
             for t in self._out_tasks:
                 t._input_readable(self, oldstate, CH_DONE_FILLED)
+
+            if self._reliable:
+                self._in_tasks = None
+                self._out_tasks = None # Don't need to provide notification of any changes
         else:
             #TODO: exception type
             raise Exception("Invalid state %d when atomic_channel set" % self._state)

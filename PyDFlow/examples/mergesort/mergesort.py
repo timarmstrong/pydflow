@@ -46,9 +46,8 @@ def merge_sort(unsorted):
 
 def main():
     start_t = datetime.datetime.now()
-    unsorted_files = [intfile.bind(f) for f in sys.argv[1:]]
     output = sorted_intfile.bind("mergesorted.txt")
-    output <<= merge_sort(unsorted_files)
+    output <<= merge_sort([intfile.bind(f) for f in sys.argv[1:]])
 
     # Need to call get() to initiate the sorting
     graph_built_t = datetime.datetime.now()

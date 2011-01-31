@@ -7,7 +7,7 @@ import paths
 #TODO: no polling?
 POLL_INTERVAL = 0.1 # seconds between polling tasks when active
 #TODO: get info about number of processors
-MAX_RUNNING = 4
+MAX_RUNNING = 10
 
 LIFO = False
 
@@ -114,6 +114,7 @@ class AppQueueEntry(object):
         stderr=openFile(stderr_file, 'w')
 
         logging.debug("Launching %s" % repr(cmd_args))
+        #print "Starting a task"
         # launch the process
         
         exc = paths.lookup(cmd_args[0])

@@ -37,9 +37,8 @@ class FutureChannel(AtomicChannel):
 def local_exec(task, input_values):
     # Update state so we know its running
     logging.debug("Running task %s with inputs %s" %(repr(task), repr(input_values)))
-    acquire_global_mutex()
+    #Don't bother grabbing - not critical that update is immediate
     task._state = T_RUNNING
-    release_global_mutex()
 
     #TODO: tag failed tasks with exception?
     # In general need to work out failure handling logic
@@ -49,33 +48,38 @@ def local_exec(task, input_values):
     except Exception, e:
         task.state = T_ERROR
         raise Exception("Loclly executed task threw exception %s" % repr(e))
-    
-    if return_val is None:
-        task.state = T_ERROR
-        #TODO: exception type
-        raise Exception("Got None return value")
-    
-    # Fill in all the output channels
-    if len(task._outputs) == 1:
-        # Update current state, then pass data to channels
-        task.state = T_DONE_SUCCESS
-        task._outputs[0]._set(return_val)
-    else:
-        try:  
-            return_vals = tuple(return_val)
-        except TypeError:
-            #TODO: exception types
-            task.state = T_ERROR
-            raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
-        if len(return_vals) != len(task._outputs):
-            task.state = T_ERROR
-            raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
 
-        # Update current state, then pass data to channels
-        task.state = T_DONE_SUCCESS
-        for val, chan in zip(return_vals, task._outputs) :
-            chan._set(val)
+
+    acquire_global_mutex()
+    try:
+        if return_val is None:
+            task.state = T_ERROR
+            #TODO: exception type
+            raise Exception("Got None return value")
+        
+        # Fill in all the output channels
+        if len(task._outputs) == 1:
+            # Update current state, then pass data to channels
+            task.state = T_DONE_SUCCESS
+            task._outputs[0]._set(return_val)
+        else:
+            try:  
+                return_vals = tuple(return_val)
+            except TypeError:
+                #TODO: exception types
+                task.state = T_ERROR
+                raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
+            if len(return_vals) != len(task._outputs):
+                task.state = T_ERROR
+                raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
+
+            # Update current state, then pass data to channels
+            task.state = T_DONE_SUCCESS
+            for val, chan in zip(return_vals, task._outputs) :
+                chan._set(val)
     #TODO: handle exceptions that occur when setting channel
+    finally:    
+        release_global_mutex()
     
 
 class FuncTask(AtomicTask):

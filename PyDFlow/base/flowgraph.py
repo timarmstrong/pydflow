@@ -20,6 +20,7 @@ from states import *
 from exceptions import *
 
 from threading import Lock
+import time
 
 
 graph_mutex = Lock()
@@ -32,7 +33,22 @@ def release_global_mutex():
     global graph_mutex
     graph_mutex.release()
 
+# Keep track of how many tasks we have started without yield
+yield_counter = 0
+YIELD_INTERVAL = 50
 
+def doyield():
+    global yield_counter
+    # Give executor a chance to grab global lock
+    if yield_counter >= YIELD_INTERVAL:
+        yield_count = 0
+        global graph_mutex
+        graph_mutex.release()
+        logging.debug("_force yielded")
+        time.sleep(0) # Activate scheduler
+        graph_mutex.acquire()
+    else:
+        yield_counter += 1
 
 
 class Task(object):
@@ -113,7 +129,9 @@ class Task(object):
         #TODO: notify channels, etc
         self._state = T_QUEUED
         logging.debug("Enqueued task %s" % repr(self))
+        #print "_exec called"
         self._exec()
+        doyield()
 
     def _exec(self):
         """
