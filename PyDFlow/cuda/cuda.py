@@ -1,0 +1,109 @@
+import base
+import pycuda.autoinit
+import pycuda.driver as drv
+import numpy as np
+
+from pycuda.compiler import SourceModule
+
+cudavar = CUDAChannel
+
+class _FuncConv:
+    def __init__(self, func_name):
+        self.func_name = func_name
+    def __call__(self, f):
+        return (self.func_name, f)
+
+class cuda_kernel(base.task_decorator):
+    """
+    TODO: for now assume that function is a zero argument function.
+    """
+    def __init__(self, func_name, output_types, input_types):
+        super(cuda_kernel, self).__init__(output_types, input_types)
+        # Stick the func_name in the tuple, so that the function
+        # can be pulled out of the module text
+        self.function_converter = _FuncConv(func_name)
+        self.wrapper_class = _CUDAKernel
+        self.task_class = CUDATask
+        
+
+class CUDATask(base.AtomicTask):
+    """
+    TODO: Intelligence to work out what stream this belongs to
+        Channels view: if all input channels belong to same stream,
+            then this channel has a stream.  The first output channel
+            can then be assigned to this stream too.  Other output channels
+            will have to wait until the async channel has actually finished.
+
+    """
+    def __init__(self, output_types, input_spec, *args, block=None, grid=(1,1), **kwargs):
+        base.AtomicTask.__init__(self, output_types, input_spec, *args, **kwargs)
+        self.block = block
+        self.grid = grid
+
+
+    def _run(self):
+        input_data = self._gather_input_data()
+        # TODO: launch asynchronous kernel
+
+class CUDAKernel(_CUDAKernel):
+    """
+    Hack to separate out func_name and source_mod - nicer interface for users
+    of module
+    """
+    def __init__(self, func_name, source_mod, *args, **kwargs)
+        _CUDAKernel.__init__(self, (func_name, source_mod), *args, **kwargs)
+    
+
+class _CUDAKernel(base.TaskWrapper):
+    """
+    Similar to TaskWrapper - this can either be invoked directly
+    by the user, or can be invoked indirectly with the @cuda_kernel decorator
+    """
+    def __init__(self, func_name_source_mod_tup, task_class, output_types, input_spec, default_block=None, default_grid=None)
+        func_name, source_mod = func_name_source_mod_type
+        # Compile the function
+        self.cuda_func = source_mod.get_function(func_name)
+        self.output_types = output_types
+        self.input_spec = input_spec
+        self.default_block = default_block
+        self.default_grid = default_grid
+
+    def __call__(self, *args, **kwargs):
+        """
+        Extra logic to fill in default blocks/grids
+        """
+        block = kwargs.get("block", self.default_block)
+        if not block:
+            raise ValueError("No block parameter provided, and no default block size for this CUDA function")
+        else:
+            kwargs['block'] = block
+        grid = kwargs.get("grid", self.default_grid)
+        if grid:
+            kwargs['grid'] = grid
+        #Delegate to parent class
+        base.TaskWrapper.__call__(self, *args, **kwargs)
+
+class CUDAChannel:
+    """
+    This class represents a numpy array that can be moved between CPU and
+    GPU, and passed between GPU kernels.
+
+    This class be in several states:
+
+    filled -> this class has a reference to the data
+    filling synchronously -> predecessor tasks have been set to run.  When the input tasks complete, then
+        this runtime will ensure that this channel is filled
+    filling asynchronously -> all the predecessor tasks/channels are being executed/filled asynchronously by
+        the CUDA runtime.  TODO: mechanism to update states as required.
+    not started -> ... self explanatory
+
+    There are several states the data can be stored when it is filled
+        -> After being mapped to a numpy array in main memory, only holds a reference to this
+        -> after being filled by a compute kernel on the gpu, only holds a reference to the array on the GPU
+        -> holds a reference to identical CPU and GPU arrays.
+    The data is staged from GPU to CPU when get() is called
+    The data is staged from CPU to GPU when prepare() is called
+    When fill is called, all the work to fill in the GPU array is started up
+
+    """
+    pass
