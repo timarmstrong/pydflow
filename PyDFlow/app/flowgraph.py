@@ -2,14 +2,34 @@ from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
-from os.path import exists
-import os
-import tempfile
-import shutil
 from parse import *
 import LocalExecutor as localexec
 from parse import parse_cmd_string
 
+import atexit
+import os
+import tempfile
+import shutil
+from os.path import exists
+
+
+# Set of temp files not yet cleaned up
+# protect with global_mutex
+tmpfiles = set()
+
+def __cleanup_alltmp():
+    """
+    To be called when python shuts down: garbage collection should ensure
+    that most temp files are deleted but we can't guarantee this.
+    """
+    global tmpfiles
+    for tfile in tmpfiles:
+        logging.debug("Cleaning up temporary file %s" % tfile)
+        os.remove(tfile)
+    tmpfiles = set()
+
+atexit.register(__cleanup_alltmp)
+        
 
 class FileChannel(AtomicChannel):
 #TODO: delete temp files upon garbage collection.
@@ -75,8 +95,11 @@ class FileChannel(AtomicChannel):
     def __del__(self):
         """
         When garbage collection happens, clean up temporary files.
-
-        Note: we can assume that 
+        
+        Ie. tie the lifetime of the backing storage to this object's
+        lifetime.
+        Note: we will assume that references to the temporary file's path 
+        won't escape this object.
         """
         # Don't lock, as GC was called can assume that no references held
         logging.debug("__del__ called on File channel")
@@ -117,12 +140,15 @@ class LocalFileChannel(FileChannel):
         """
         Creates an empty temporary file and binds self to it.
         """
-        handle, self._bound = tempfile.mkstemp()
+        handle, path = tempfile.mkstemp()
         os.close(handle)
+        self._bound = path
+        tmpfiles.add(path) # track files
         self._temp_created=True
 
     def _cleanup_tmp(self):
         os.remove(self._bound)
+        tmpfiles.remove(self._bound) # no longer track
         self._bound = None
         self._temp_created=False
     
