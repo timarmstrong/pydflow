@@ -14,7 +14,7 @@ assume that any looks are held.
 import PyDFlow.futures
 import logging
 from PyDFlow.types import flvar 
-from PyDFlow.types.check import validate_inputs
+from PyDFlow.types.check import validate_inputs, spec_zip
 
 from states import *
 from exceptions import *
@@ -56,7 +56,7 @@ class Task(object):
         # Set the state to this value, however it can be overwritten
         # by child classes, as it migh tbe possible for some task
         # types to start running if not all channels are ready
-        taskname = kwargs.get('taskname', None)
+        taskname = kwargs.pop('_taskname', None)
         if len(input_spec) == 0:
             self._state = T_DATA_READY
         else: 
@@ -82,7 +82,7 @@ class Task(object):
         self._input_spec = input_spec
         not_ready_count = 0
         inputs_ready = []
-        for c, s in zip(self._inputs, input_spec):
+        for c, s in self._input_iter():
             ready = s.isRaw() or c._register_output(self)
             inputs_ready.append(ready)
             if not ready: 
@@ -94,6 +94,14 @@ class Task(object):
 
     def _all_inputs_ready(self):
         return self._inputs_notready_count == 0
+
+    def _input_iter(self):
+        """
+        Iterate through inputs and corresponding spec items.
+        This handles the complexity of one spec corresponding to
+        multiple items.
+        """
+        return spec_zip(self._inputs, self._input_spec) 
 
     def __setup_outputs(self, output_types, **kwargs):
         outputs = None
@@ -193,7 +201,7 @@ class Task(object):
             logging.debug("Task %s forced: starting dependencies" % repr(self))
             # Force all inputs
             self._state = T_DATA_WAIT
-            for inp, spec in zip(self._inputs, self._input_spec):
+            for inp, spec in self._input_iter():
                 if not spec.isRaw():
                     # if input is filled or already filling, method 
                     # should do nothing

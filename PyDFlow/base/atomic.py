@@ -3,6 +3,7 @@ from states import *
 from PyDFlow.futures.futures import Future
 from PyDFlow.base.exceptions import *
 from flowgraph import acquire_global_mutex, release_global_mutex
+from PyDFlow.types.check import isRaw
 
 import logging
 
@@ -40,13 +41,22 @@ class AtomicTask(Task):
         directly accessing them.
         """
         input_data = []
-        for inp, spec in zip(self._inputs, self._input_spec):
+        inputs = self._inputs
+        for inp, spec in self._input_iter():
             if spec.isRaw():
                 input_data.append(inp)
             else:
                 input_data.append(inp._get())
+
         return input_data
 
+    def _prep_channels(self):
+        for o, s in self._input_iter():
+            if not s.isRaw():
+                o._prepare(M_READ)
+        # Ensure outputs can be written to
+        for o in self._outputs:
+            o._prepare(M_WRITE)
 
 
 

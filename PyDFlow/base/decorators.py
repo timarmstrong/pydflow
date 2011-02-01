@@ -56,10 +56,32 @@ class task_decorator(object):
         if self.task_class is None:
             raise Exception("task_class must be defined for task_decorator")
 
+        rawspec = inspect.getargspec(function)
+        arg_names = rawspec[0]
+        remainder_name = rawspec[1]
+
+        if remainder_name is None:
+            if len(arg_names) != len(self.input_types):
+                #TODO
+                raise Exception("Mismatch between function argument count %d \
+                        and input type tuple length %d for function %s" % (
+                        len(arg_names), len(self.input_types), 
+                        function.__name__))
+        else:
+            if len(arg_names) + 1 != len(self.input_types):
+                raise Exception("Mismatch between function argument count %d \
+                        and input type tuple length %d for function %s" % (
+                        len(arg_names)+1, len(self.input_types), 
+                        function.__name__))
+                
         # Build the input specification for the function using introspection
         self.input_spec = [InputSpec( name, t) 
                     for t, name 
-                    in zip(self.input_types, inspect.getargspec(function)[0])]
+                    in zip(self.input_types, arg_names)]
+
+        if remainder_name is not None:
+            self.input_spec.append(InputSpec(remainder_name,
+                    self.input_types[-1]))
 
         wrapped = self.wrapper_class(function, self.task_class, self.output_types, self.input_spec, *(self.args), **(self.kwargs))
         # fix the name and docstring of the wrapped function.
@@ -78,7 +100,7 @@ class TaskWrapper:
         # Set up the input/output channels and the tasks, plugging
         # them all together and validating types
 
-        kwargs['taskname']=self._taskname
+        kwargs['_taskname']=self._taskname
 
         task = self.task_class(self.func, self.output_types, self.input_spec,
                                 *args, **kwargs)

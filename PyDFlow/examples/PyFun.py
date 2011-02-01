@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import datetime
 from PyDFlow.PyFun import *
+from PyDFlow import *
 import logging
 import random
 
@@ -24,8 +25,11 @@ def add1(a, b):
 
 @func((Int), (Int, Int))
 def nextfib(f1, f2):
-#    print f1 + f2
     return f1 + f2
+
+@func((Int), (Multiple(Int)))
+def maxi(*args):
+    return max(args)
 
 def fib(n):
     f1 = Int.bind(0) # fib(0)
@@ -107,6 +111,9 @@ def main():
     x = Int()
     x <<= add(a,a)
     print "x = %d" % x.get()
+
+
+    print "maxi(4,2,6) = %d" % maxi(Int.bind(4), Int.bind(2), Int.bind(6)).get()
 
     print "Done."
 

@@ -4,7 +4,7 @@ import datetime
 import sys
 import logging 
 import PyDFlow.app.paths as app_paths
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 app_paths.add_path("./PyDFlow/examples/mergesort/")
 
 intfile = localfile.subtype()
@@ -14,10 +14,12 @@ app_count = 0
 
 @app((sorted_intfile), (intfile))
 def sort(file):
+    print file
     return "sort -n @file -o @output_0"
 
 @app((sorted_intfile), (sorted_intfile, sorted_intfile))
 def merge(f1, f2):
+    print f1, f2
     return "merge @f1 @f2 @output_0"
 
 

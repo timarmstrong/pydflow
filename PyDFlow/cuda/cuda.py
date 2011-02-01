@@ -1,4 +1,6 @@
-import base
+from PyFlow.base.decorators import task_decorator
+from PyFlow.base.atomic import AtomicChannel, AtomicTask
+
 import pycuda.autoinit
 import pycuda.driver as drv
 import numpy as np
@@ -7,13 +9,8 @@ from pycuda.compiler import SourceModule
 
 cudavar = CUDAChannel
 
-class _FuncConv:
-    def __init__(self, func_name):
-        self.func_name = func_name
-    def __call__(self, f):
-        return (self.func_name, f)
 
-class cuda_kernel(base.task_decorator):
+class cuda_kernel(task_decorator):
     """
     TODO: for now assume that function is a zero argument function.
     """
@@ -21,12 +18,12 @@ class cuda_kernel(base.task_decorator):
         super(cuda_kernel, self).__init__(output_types, input_types)
         # Stick the func_name in the tuple, so that the function
         # can be pulled out of the module text
-        self.function_converter = _FuncConv(func_name)
+        self.func = (func_name, self.func)
         self.wrapper_class = _CUDAKernel
         self.task_class = CUDATask
         
 
-class CUDATask(base.AtomicTask):
+class CUDATask(AtomicTask):
     """
     TODO: Intelligence to work out what stream this belongs to
         Channels view: if all input channels belong to same stream,
@@ -41,7 +38,7 @@ class CUDATask(base.AtomicTask):
         self.grid = grid
 
 
-    def _run(self):
+    def _exec(self):
         input_data = self._gather_input_data()
         # TODO: launch asynchronous kernel
 
@@ -83,7 +80,7 @@ class _CUDAKernel(base.TaskWrapper):
         #Delegate to parent class
         base.TaskWrapper.__call__(self, *args, **kwargs)
 
-class CUDAChannel:
+class CUDAChannel(AtomicChannel):
     """
     This class represents a numpy array that can be moved between CPU and
     GPU, and passed between GPU kernels.

@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from PyDFlow.app import *
 import logging
 import os.path

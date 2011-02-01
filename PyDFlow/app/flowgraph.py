@@ -2,6 +2,7 @@ from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
+from PyDFlow.types.check import spec_zip
 from parse import *
 import LocalExecutor as localexec
 from parse import parse_cmd_string
@@ -202,32 +203,19 @@ class AppTask(AtomicTask):
     
     def _prepare_command(self):
         """
-        Initializes 
+        Initializes i/o channels and collects data
+        This presumes that graph_mutex is nt held prior to calling
         """
         graph_mutex.acquire()
-        for o, s in zip(self._inputs, self._input_spec):
-            if not s.isRaw():
-                o._prepare(M_READ)
-        # Ensure outputs can be written to
-        for o in self._outputs:
-            o._prepare(M_WRITE)
-       
-        logging.debug(repr(zip(self._input_data, self._input_spec)))
+        self._prep_channels()
         # Create a dictionary of variable names to file paths
         #TODO: what if input and output names overlap?
-        logging.debug("self._input_data %s" % repr(self._input_data))
-        logging.debug("self._input_spec %s " % repr(self._input_spec))
-        logging.debug("isRaw: %s", repr([spec.isRaw() for spec in self._input_spec]))
-        logging.debug("isSubclass: %s", repr(not spec.isRaw() and [spec.fltype.issubclassof(FileChannel) for spec in self._input_spec]))
-        logging.debug("Inputs: " + repr([(spec.name, input_path)
-                    for input_path, spec 
-                    in zip(self._input_data, self._input_spec)
-                    if (not spec.isRaw()) and 
-                        spec.fltype.issubclassof(FileChannel)]))
+        # TODO FIXME:
+        #   Doesn't handle Multiple argument well
         path_dict = dict(
                 [(spec.name, input_path)
                     for input_path, spec 
-                    in zip(self._input_data, self._input_spec)
+                    in spec_zip(self._input_data, self._input_spec)
                     if (not spec.isRaw()) and 
                         spec.fltype.issubclassof(FileChannel)]
               + [("output_%d" % i, output._bound)

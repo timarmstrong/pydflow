@@ -91,10 +91,7 @@ class FuncTask(AtomicTask):
         logging.debug("Starting a FuncTask")
         #TODO: select execution backend, run me!
         # Build closure for executor
-        for o in self._inputs:
-            o._prepare(M_READ)
-        for o in self._outputs:
-            o._prepare(M_WRITE)
+        self._prep_channels()
         # grab the input values while we have a lock
         input_values = self._gather_input_values()
         def do():
