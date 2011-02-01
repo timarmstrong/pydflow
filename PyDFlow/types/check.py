@@ -75,8 +75,8 @@ def check_logicaltype(thetype, var, name=None):
             if not isinstance(var, thetype):
                 raise FlTypeError("Var %s:%s not a subtype of specified type. \
                     Required type %s, actual type %s" % (
-                    spec.name, repr(var), repr(thetype), repr(var),
-                    repr(thetype)))
+                    repr(name), repr(var), repr(thetype),
+                    type(var)))
     return var 
 
 def validate_inputs(input_spec, args, kwargs):
@@ -136,9 +136,7 @@ def spec_zip(inputs, input_spec):
             inlen = len(inputs)
             while i < inlen:
                 #TODO: hack
-                yield inputs[i], InputSpec("%s_%d" % (spec.name ,
-                        i - len(input_spec) + 1), 
-                            spec.fltype.internal)
+                yield (inputs[i], spec)
                 i += 1
         else:
             yield inputs[i], spec

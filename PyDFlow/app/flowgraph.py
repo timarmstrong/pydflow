@@ -3,7 +3,6 @@ from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
 from PyDFlow.types.check import spec_zip
-from parse import *
 import LocalExecutor as localexec
 from parse import parse_cmd_string
 
@@ -12,6 +11,7 @@ import os
 import tempfile
 import shutil
 from os.path import exists
+import logging
 
 
 # Set of temp files not yet cleaned up
@@ -210,17 +210,27 @@ class AppTask(AtomicTask):
         self._prep_channels()
         # Create a dictionary of variable names to file paths
         #TODO: what if input and output names overlap?
-        # TODO FIXME:
-        #   Doesn't handle Multiple argument well
-        path_dict = dict(
-                [(spec.name, input_path)
-                    for input_path, spec 
-                    in spec_zip(self._input_data, self._input_spec)
-                    if (not spec.isRaw()) and 
-                        spec.fltype.issubclassof(FileChannel)]
-              + [("output_%d" % i, output._bound)
-                    for i, output
-                    in enumerate(self._outputs)] )
+        path_dict = {}
+        multi = []
+        multi_count = 0
+        multi_name = None
+        for input_path, spec in spec_zip(self._input_data, self._input_spec):
+            if not spec.isRaw():
+                if spec.isMulti():
+                    if spec.fltype.internal.issubclassof(FileChannel):
+                        path_dict["%s_%d" % (spec.name, multi_count)] = \
+                                input_path
+                        multi.append(input_path)
+                        multi_name = spec.name
+                        multi_count += 1
+                elif spec.fltype.issubclassof(FileChannel):
+                    path_dict[spec.name] = input_path
+        if multi_name is not None:
+            path_dict[multi_name] = multi
+
+        for i, output in enumerate(self._outputs):
+            path_dict["output_%d" % i] =  output._bound
+
         logging.debug("% s path_dict: %s" % (repr(self), repr(path_dict)))
         
         cmd_string = self._func(*self._input_data)

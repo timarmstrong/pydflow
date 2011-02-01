@@ -42,7 +42,8 @@ def parse_cmd_string(cmd_string, path_dict):
                         tokens.append(''.join(curr_tok))
                         first = False
                     else: 
-                        tokens.append(process_token(curr_tok, path_dict, substitute_path))
+                        process_token(tokens, curr_tok, path_dict, 
+                                            substitute_path)
                     curr_tok = []
                     in_token = False
                     substitute_path = False
@@ -62,14 +63,14 @@ def parse_cmd_string(cmd_string, path_dict):
             tokens.append(''.join(curr_tok))
             first = False
         else:
-            tokens.append(process_token(curr_tok, path_dict, substitute_path))
+            process_token(tokens, curr_tok, path_dict, substitute_path)
 
     logging.debug("Given pathname dict %s and cmdstring %s, result was %s" % (
             repr(path_dict), cmd_string, repr(tokens)))
     return tokens
 
 
-def process_token(tok, path_dict, substitute_path):
+def process_token(tok_list, tok, path_dict, substitute_path):
     tok = ''.join(tok) # concatenate list of strings
     if substitute_path:
         # Strip off "@" and look up path
@@ -77,6 +78,9 @@ def process_token(tok, path_dict, substitute_path):
         if not path:
             raise Exception("No such argument to app as %s, cannot resolve %s, path_dict: %s" % (
                     tok[1:], tok, repr(path_dict)))
-        return path
+        if isinstance(path, list):
+            tok_list.extend(path)
+        else:
+            tok_list.append(path)
     else:
-        return tok
+        tok_list.append(tok)
