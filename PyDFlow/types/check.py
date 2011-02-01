@@ -15,7 +15,9 @@ class InputSpec(object):
     """
     def __init__(self, name, fltype):
         self.name = name
-        self.fltype = fltype 
+        self.fltype = fltype
+        self.raw = fltype is None or (
+                    not issubclass(self.fltype, flvar))
 
     def __repr__(self):
         return 'flinput: %s %s' % (self.name, repr(self.fltype))
@@ -25,7 +27,7 @@ class InputSpec(object):
         Not a variable to be processed by PyDFlow, it will be passed through
         as a plain python variable
         """
-        return self.fltype is None
+        return self.raw
 
 
 def check_logicaltype(spec, var):
@@ -42,21 +44,19 @@ def check_logicaltype(spec, var):
         # function.  Don't need to do anything, except pass whatever
         # we got in
         # Check type of matched variable matches the type signature
-        if not isinstance(var, flvar):
+        if not isinstance(var, spec.fltype):
             try:
-                var = var[0]
+                if len(var) == 1:
+                    var = var[0]
             except TypeError:
                 raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
                     spec.name, repr(var)))
             # check the subscripted type now
-            if not isinstance(var, flvar):
-    
-                raise FlTypeError("Var %s:%s not a swift variable even after \
-                        subscripting" % (spec.name, repr(var)))
-        if not isinstance(var, spec.fltype):
-            raise FlTypeError("Var %s:%s not a subtype of specified type. \
-                Required type %s, actual type %s" % (
-                spec.name, repr(var), repr(spec.fltype), repr(var)))
+            if not isinstance(var, spec.fltype):
+                raise FlTypeError("Var %s:%s not a subtype of specified type. \
+                    Required type %s, actual type %s" % (
+                    spec.name, repr(var), repr(spec.fltype), repr(var),
+                    repr(spec.fltype)))
     return var 
 
 def validate_inputs(input_spec, args, kwargs):

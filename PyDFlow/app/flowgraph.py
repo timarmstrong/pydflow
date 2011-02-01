@@ -205,8 +205,9 @@ class AppTask(AtomicTask):
         Initializes 
         """
         graph_mutex.acquire()
-        for o in self._inputs:
-            o._prepare(M_READ)
+        for o, s in zip(self._inputs, self._input_spec):
+            if not s.isRaw():
+                o._prepare(M_READ)
         # Ensure outputs can be written to
         for o in self._outputs:
             o._prepare(M_WRITE)
@@ -214,6 +215,15 @@ class AppTask(AtomicTask):
         logging.debug(repr(zip(self._input_data, self._input_spec)))
         # Create a dictionary of variable names to file paths
         #TODO: what if input and output names overlap?
+        logging.debug("self._input_data %s" % repr(self._input_data))
+        logging.debug("self._input_spec %s " % repr(self._input_spec))
+        logging.debug("isRaw: %s", repr([spec.isRaw() for spec in self._input_spec]))
+        logging.debug("isSubclass: %s", repr(not spec.isRaw() and [spec.fltype.issubclassof(FileChannel) for spec in self._input_spec]))
+        logging.debug("Inputs: " + repr([(spec.name, input_path)
+                    for input_path, spec 
+                    in zip(self._input_data, self._input_spec)
+                    if (not spec.isRaw()) and 
+                        spec.fltype.issubclassof(FileChannel)]))
         path_dict = dict(
                 [(spec.name, input_path)
                     for input_path, spec 
