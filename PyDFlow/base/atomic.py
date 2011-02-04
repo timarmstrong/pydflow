@@ -2,9 +2,12 @@ from flowgraph import Task, Channel
 from states import *
 from PyDFlow.futures.futures import Future
 from PyDFlow.base.exceptions import *
-from flowgraph import acquire_global_mutex, release_global_mutex
+from flowgraph import acquire_global_mutex, release_global_mutex, graph_mutex
 from PyDFlow.types.check import isRaw
 
+import threading
+from itertools import izip
+import Queue
 import logging
 
 
@@ -73,6 +76,8 @@ class AtomicChannel(Channel):
         # Whether the backing storage is reliable
         self._reliable = True
 
+        self._callbacks = []
+
     def _register_input(self, input_task):
         """ 
         Channel can only be written to once, by a single writer.
@@ -96,6 +101,7 @@ class AtomicChannel(Channel):
             self._out_tasks.append(output_task)
             #TODO: right?
             return done
+
     def _prepare(self, mode):
         """
         Set up the future variable to be written into.
@@ -172,6 +178,8 @@ class AtomicChannel(Channel):
             if self._reliable:
                 self._in_tasks = None
                 self._out_tasks = None # Don't need to provide notification of any changes
+            for cb in self._callbacks:
+                cb(self)
         else:
             #TODO: exception type
             raise Exception("Invalid state %d when atomic_channel set" % self._state)
@@ -232,13 +240,85 @@ class AtomicChannel(Channel):
             #TODO: exception type
             raise Exception("Invalid state code: %d" % self._state)
 
-        def readable(self):
-            """
-            For atomic channels, it is readable either if it
-            has been filled or it is bound.
-            """
-            return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
-                or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
-                    and self._bound is not None and self._in_tasks == [])
+    def readable(self):
+        """
+        For atomic channels, it is readable either if it
+        has been filled or it is bound.
+        """
+        #TODO: lock
+        return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
+            or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
+                and self._bound is not None and self._in_tasks == [])
 
+    def register_callback(self, callable):
+        """
+        Callback when the channel is filled or an
+        error occurs.  The argument should be a callable
+        object which takes one argument, this channel.
+        """
+        global graph_mutex
+        graph_mutex.acquire()
+        self._callbacks.append(callable)
+        graph_mutex.release()
 
+class ResultBag:
+    """
+    Take a bunch of channels, start them running and iterate over
+    the results in the order they finish.
+
+    max_running limits the number of tasks that will be launched at
+    one time
+    TODO: should maybe just be function
+    """
+    def __init__(self, channels, channel_ids=None, max_running=None):
+        self.channels = channels
+        self.channel_ids = channel_ids
+        self.finishedq = Queue.Queue()
+        self.max_running=max_running
+
+    def __call__(self):
+        """
+        Start the channels running and iterate over the results 
+        of the channel in the order in which they finish.
+        """
+        if self.channel_ids is None:
+            iter = enumerate(self.channels)
+        else:
+            iter = izip(self.channel_ids, self.channels)
+        
+        outstanding = {} 
+        noutstanding = 0
+        max_running = self.max_running
+        for id, chan in iter:
+            # Bound the number of outstanding requests
+            while max_running and noutstanding >= max_running:
+                # wait for something to finish before running
+                finished = self.finishedq.get()
+                fin_id = outstanding.pop(finished)
+                noutstanding -= 1
+                yield fin_id, finished
+            # track the id (assume channels are uniquely hashable)
+            #   which is true if hash not overloaded
+            chan.register_callback(self.finished)
+            # register callback first to avoid race condition
+            if chan.readable():
+                yield id, chan
+            else:
+                chan.force()
+                outstanding[chan] = id
+                noutstanding += 1
+            # Yield all of the finished items before launching more
+            while (not self.finishedq.empty()):
+                finished = self.finishedq.get()
+                fin_id = outstanding.pop(finished)
+                noutstanding -= 1
+                yield fin_id, finished
+        # finished launching all
+        while noutstanding > 0: # check not empty
+            finished = self.finishedq.get()
+            fin_id = outstanding.pop(finished)
+            noutstanding -= 1
+            yield fin_id, finished
+
+    def finished(self, chan):
+        self.finishedq.put(chan)
