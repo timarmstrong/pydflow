@@ -4,7 +4,7 @@ import time
 import logging
 from PyDFlow import *
 from PyDFlow.PyFun import *
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 Int = future.subtype()
 
@@ -42,6 +42,6 @@ inp2 = [Int.bind(i) for i in range(20)]
 
 out2 = map(rand_dur, inp)
 
-b = ResultBag(out2 + out )
+b = resultbag(out2 + out )
 print "Testing result collection with mix of channels"
 use_rbag(b) # check that it works ok with already finished tasks

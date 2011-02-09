@@ -360,7 +360,7 @@ class Channel(flvar):
         global graph_mutex
         graph_mutex.acquire()
         try:
-            self._force()
+            self._force(done_callback=done_callback)
         finally:
             graph_mutex.release()
 
