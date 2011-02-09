@@ -1,8 +1,10 @@
 #!/usr/bin/python
 import random
 import time
+import logging
 from PyDFlow import *
 from PyDFlow.PyFun import *
+logging.basicConfig(level=logging.DEBUG)
 
 Int = future.subtype()
 
@@ -20,11 +22,12 @@ inp = [Int.bind(i) for i in range(20)]
 
 out = map(rand_dur, inp)
 
-b = ResultBag(out, max_running=2)
+#b = resultbag(out, max_running=2)
+b = resultbag(out)
 
-def use_rbag(b):    
+def use_rbag(bag):    
     res = []
-    for i, c in b():
+    for i, c in bag:
         print i, c.get()
         res.append((i, c.get()))
 

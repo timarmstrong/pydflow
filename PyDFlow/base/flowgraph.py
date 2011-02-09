@@ -236,6 +236,8 @@ class Channel(flvar):
         self._out_tasks = []
         self._state = CH_CLOSED
         self._bound = _bind_location
+        self._done_callbacks = []
+        self._reliable = False
    
     def __ilshift__(self, oth):
         """
@@ -350,7 +352,7 @@ class Channel(flvar):
         """
         raise UnimplementedException("get not implemented on base Channel class")
 
-    def force(self):
+    def force(self, done_callback=None):
         """ 
         Forces evaluation of tasks to occur such that this channel will be filled 
         with data eventually.
@@ -370,7 +372,11 @@ class Channel(flvar):
         check states of inputs, update own state, start any inputs running
         """
         raise UnimplementedException("force not implemented on base Channel class")
-    
+    def _notify_done(self): 
+        for cb in self._done_callbacks:
+            cb(self)
+        self._done_callbacks = []
+
     def state(self):
         """
         Return the current state of the channel
@@ -388,7 +394,7 @@ class Channel(flvar):
 
         This should be overridden as it depends on the type of channel.
         """
-        raise Unimplem
+        raise UnimplementException("readable is not implemented")
 
     @classmethod
     def bind(cls, location):

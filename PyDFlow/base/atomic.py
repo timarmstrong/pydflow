@@ -7,7 +7,6 @@ from PyDFlow.types.check import isRaw
 
 import threading
 from itertools import izip
-import Queue
 import logging
 
 
@@ -76,7 +75,6 @@ class AtomicChannel(Channel):
         # Whether the backing storage is reliable
         self._reliable = True
 
-        self._callbacks = []
 
     def _register_input(self, input_task):
         """ 
@@ -177,9 +175,8 @@ class AtomicChannel(Channel):
 
             if self._reliable:
                 self._in_tasks = None
-                self._out_tasks = None # Don't need to provide notification of any changes
-            for cb in self._callbacks:
-                cb(self)
+                self._out_tasks = None # Don't need to provide notification of any changes'
+            self._notify_done()
         else:
             #TODO: exception type
             raise Exception("Invalid state %d when atomic_channel set" % self._state)
@@ -206,8 +203,11 @@ class AtomicChannel(Channel):
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")
 
-    def _force(self):
+    def _force(self, done_callback=None):
         logging.debug("Atomic Channel forced")
+        if done_callback is not None:
+            self._done_callbacks.append(done_callback)
+
         if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
             if self._bound is not None and self._in_tasks == []:
                 if self._has_data():
@@ -226,12 +226,12 @@ class AtomicChannel(Channel):
                 # Nowhere for data to come from
                 #TODO: exception type
                 raise Exception("forcing channel which has no input tasks or bound data")
-        elif self._state in [CH_CLOSED_WAITING, CH_OPEN_R, CH_OPEN_RW]:
+        elif self._state in [CH_CLOSED_WAITING, CH_OPEN_W]:
             # Already forced, just wait
             pass
-        elif self._state in [CH_OPEN_W, CH_DONE_FILLED]:
-            # In process of being filled, just wait
-            pass
+        elif self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]:
+            # Filled: notify all, including provided callback
+            self._notify_done()
         elif self._state == CH_ERROR:
             #TODO: reraise exception
             # retry?
@@ -250,75 +250,3 @@ class AtomicChannel(Channel):
             or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
                 and self._bound is not None and self._in_tasks == [])
 
-    def register_callback(self, callable):
-        """
-        Callback when the channel is filled or an
-        error occurs.  The argument should be a callable
-        object which takes one argument, this channel.
-        """
-        global graph_mutex
-        graph_mutex.acquire()
-        self._callbacks.append(callable)
-        graph_mutex.release()
-
-class ResultBag:
-    """
-    Take a bunch of channels, start them running and iterate over
-    the results in the order they finish.
-
-    max_running limits the number of tasks that will be launched at
-    one time
-    TODO: should maybe just be function
-    """
-    def __init__(self, channels, channel_ids=None, max_running=None):
-        self.channels = channels
-        self.channel_ids = channel_ids
-        self.finishedq = Queue.Queue()
-        self.max_running=max_running
-
-    def __call__(self):
-        """
-        Start the channels running and iterate over the results 
-        of the channel in the order in which they finish.
-        """
-        if self.channel_ids is None:
-            iter = enumerate(self.channels)
-        else:
-            iter = izip(self.channel_ids, self.channels)
-        
-        outstanding = {} 
-        noutstanding = 0
-        max_running = self.max_running
-        for id, chan in iter:
-            # Bound the number of outstanding requests
-            while max_running and noutstanding >= max_running:
-                # wait for something to finish before running
-                finished = self.finishedq.get()
-                fin_id = outstanding.pop(finished)
-                noutstanding -= 1
-                yield fin_id, finished
-            # track the id (assume channels are uniquely hashable)
-            #   which is true if hash not overloaded
-            chan.register_callback(self.finished)
-            # register callback first to avoid race condition
-            if chan.readable():
-                yield id, chan
-            else:
-                chan.force()
-                outstanding[chan] = id
-                noutstanding += 1
-            # Yield all of the finished items before launching more
-            while (not self.finishedq.empty()):
-                finished = self.finishedq.get()
-                fin_id = outstanding.pop(finished)
-                noutstanding -= 1
-                yield fin_id, finished
-        # finished launching all
-        while noutstanding > 0: # check not empty
-            finished = self.finishedq.get()
-            fin_id = outstanding.pop(finished)
-            noutstanding -= 1
-            yield fin_id, finished
-
-    def finished(self, chan):
-        self.finishedq.put(chan)
