@@ -32,8 +32,8 @@ class CUDATask(AtomicTask):
             will have to wait until the async channel has actually finished.
 
     """
-    def __init__(self, output_types, input_spec, *args, block=None, grid=(1,1), **kwargs):
-        base.AtomicTask.__init__(self, output_types, input_spec, *args, **kwargs)
+    def __init__(self, *args, block=None, grid=(1,1), **kwargs):
+        base.AtomicTask.__init__(self, *args, **kwargs)
         self.block = block
         self.grid = grid
 
@@ -56,12 +56,11 @@ class _CUDAKernel(base.TaskWrapper):
     Similar to TaskWrapper - this can either be invoked directly
     by the user, or can be invoked indirectly with the @cuda_kernel decorator
     """
-    def __init__(self, func_name_source_mod_tup, task_class, output_types, input_spec, default_block=None, default_grid=None)
+    def __init__(self, func_name_source_mod_tup, task_class, descriptor, default_block=None, default_grid=None)
         func_name, source_mod = func_name_source_mod_type
         # Compile the function
         self.cuda_func = source_mod.get_function(func_name)
-        self.output_types = output_types
-        self.input_spec = input_spec
+        self._descriptor = descriptor #TODO: right?
         self.default_block = default_block
         self.default_grid = default_grid
 

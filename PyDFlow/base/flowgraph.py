@@ -14,14 +14,12 @@ assume that any looks are held.
 import PyDFlow.futures
 import logging
 from PyDFlow.types import flvar 
-from PyDFlow.types.check import validate_inputs, spec_zip
 
 from states import *
 from exceptions import *
 
 from threading import Lock
 import time
-import inspect
 
 
 graph_mutex = Lock()
@@ -53,25 +51,26 @@ def doyield():
 
 
 class Task(object):
-    def __init__(self, output_types, input_spec, *args, **kwargs):
+    def __init__(self, descriptor, *args, **kwargs):
         # Set the state to this value, however it can be overwritten
         # by child classes, as it migh tbe possible for some task
         # types to start running if not all channels are ready
         taskname = kwargs.pop('_taskname', None)
-        if len(input_spec) == 0:
+        if descriptor.input_count() == 0:
             self._state = T_DATA_READY
         else: 
             self._state = T_INACTIVE
         
         self._taskname = taskname
+        self._descriptor = descriptor
 
         # Validate the function inputs.  note: this will consume
         # kwargs that match task input arguments
-        self._inputs = validate_inputs(input_spec, args, kwargs)
+        self._inputs = descriptor.validate_inputs(args, kwargs)
         graph_mutex.acquire()
         try: 
-            self.__setup_inputs(input_spec)
-            self.__setup_outputs(output_types, **kwargs)
+            self.__setup_inputs()
+            self.__setup_outputs(**kwargs)
         finally:
             graph_mutex.release()
     
@@ -79,11 +78,10 @@ class Task(object):
         return "<PyDFlow Task Instance: %s>" % repr(self._taskname)
 
 
-    def __setup_inputs(self, input_spec):
-        self._input_spec = input_spec
+    def __setup_inputs(self):
         not_ready_count = 0
         inputs_ready = []
-        for c, s in self._input_iter():
+        for s, c in self._input_iter():
             ready = s.isRaw() or c._register_output(self)
             inputs_ready.append(ready)
             if not ready: 
@@ -102,9 +100,9 @@ class Task(object):
         This handles the complexity of one spec corresponding to
         multiple items.
         """
-        return spec_zip(self._inputs, self._input_spec) 
+        return self._descriptor.zip(self._inputs) 
 
-    def __setup_outputs(self, output_types, **kwargs):
+    def __setup_outputs(self, **kwargs):
         outputs = None
         # Setup output channels
         if "_outputs" in kwargs:
@@ -113,17 +111,9 @@ class Task(object):
             outputs = kwargs["_out"]
 
         if outputs is not None:
-            # Pack into a tuple if needed
-            if not isinstance(outputs, (list, tuple)):
-                outputs = (outputs,)
-            if len(outputs) != len(output_types):
-                raise Exception("_outputs must match length of output_types")
-            err = [(chan, t) for chan, t in zip(outputs, output_types)
-                    if not issubclass(t, chan.__class__)]
-            if err:
-                raise Exception("Output channel of wrong type provided")
+            self._descriptor.validate_outputs(outputs)
         else:
-            outputs = [channel_cls() for channel_cls in output_types]
+            outputs = self._descriptor.make_outputs()
         self._outputs = outputs
 
         # Connect up this task as an output for the channel
@@ -202,7 +192,7 @@ class Task(object):
             logging.debug("Task %s forced: starting dependencies" % repr(self))
             # Force all inputs
             self._state = T_DATA_WAIT
-            for inp, spec in self._input_iter():
+            for spec, inp in self._input_iter():
                 if not spec.isRaw():
                     # if input is filled or already filling, method 
                     # should do nothing

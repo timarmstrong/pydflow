@@ -2,7 +2,6 @@ from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
-from PyDFlow.types.check import spec_zip
 import LocalExecutor as localexec
 from parse import parse_cmd_string
 
@@ -175,10 +174,8 @@ class LocalFileChannel(FileChannel):
 
 
 class AppTask(AtomicTask):
-    def __init__(self, func, output_types, input_spec,
-            *args, **kwargs):
-        super(AppTask, self).__init__(output_types, 
-                                input_spec, *args, **kwargs)
+    def __init__(self, func, *args, **kwargs):
+        super(AppTask, self).__init__(*args, **kwargs)
         self._func = func
         self._input_data = None
     
@@ -214,7 +211,7 @@ class AppTask(AtomicTask):
         multi = []
         multi_count = 0
         multi_name = None
-        for input_path, spec in spec_zip(self._input_data, self._input_spec):
+        for spec, input_path in self._descriptor.zip(self._input_data):
             if not spec.isRaw():
                 if spec.isMulti():
                     if spec.fltype.internal.issubclassof(FileChannel):

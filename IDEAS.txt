@@ -48,3 +48,10 @@ addsources(map(CFile.bind, sources))
     .isFresh() method on channels that searches back through dependencies
     - need to determine if an channel with missing inputs is out of date or a 
     source: 
+
+Streaming:
+* resultbag() could be basis for a stream type
+
+Reduce data duplication:
+* consolidate output and input spec into a type validator class for each
+    task type

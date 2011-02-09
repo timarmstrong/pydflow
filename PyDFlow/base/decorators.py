@@ -1,4 +1,4 @@
-from PyDFlow.types.check import InputSpec
+from PyDFlow.types.check import InputSpec, TaskDescriptor
 import inspect
 from functools import wraps
 
@@ -32,7 +32,7 @@ class task_decorator(object):
     """
     def __init__(self, output_types, input_types, *args, **kwargs):
         # args and kwargs are to be passed to wrapper class
-        #TODO: check that inputs an outputs are swinputs
+        
         #Both inputs should be tuples or lists
         try:
             self.input_types = list(input_types)
@@ -56,43 +56,18 @@ class task_decorator(object):
         if self.task_class is None:
             raise Exception("task_class must be defined for task_decorator")
 
-        rawspec = inspect.getargspec(function)
-        arg_names = rawspec[0]
-        remainder_name = rawspec[1]
+        descriptor = TaskDescriptor(function, self.input_types, 
+                self.output_types) 
 
-        if remainder_name is None:
-            if len(arg_names) != len(self.input_types):
-                #TODO
-                raise Exception("Mismatch between function argument count %d \
-                        and input type tuple length %d for function %s" % (
-                        len(arg_names), len(self.input_types), 
-                        function.__name__))
-        else:
-            if len(arg_names) + 1 != len(self.input_types):
-                raise Exception("Mismatch between function argument count %d \
-                        and input type tuple length %d for function %s" % (
-                        len(arg_names)+1, len(self.input_types), 
-                        function.__name__))
-                
-        # Build the input specification for the function using introspection
-        self.input_spec = [InputSpec( name, t) 
-                    for t, name 
-                    in zip(self.input_types, arg_names)]
-
-        if remainder_name is not None:
-            self.input_spec.append(InputSpec(remainder_name,
-                    self.input_types[-1]))
-
-        wrapped = self.wrapper_class(function, self.task_class, self.output_types, self.input_spec, *(self.args), **(self.kwargs))
+        wrapped = self.wrapper_class(function, self.task_class, descriptor, *(self.args), **(self.kwargs))
         # fix the name and docstring of the wrapped function.
         return wraps(function)(wrapped)
 
 
 class TaskWrapper:
-    def __init__(self, func, task_class, output_types, input_spec):
+    def __init__(self, func, task_class, descriptor):
         self.func = func
-        self.output_types = output_types
-        self.input_spec = input_spec
+        self.descriptor = descriptor
         self.task_class = task_class
         self._taskname = func.__name__
 
@@ -102,7 +77,7 @@ class TaskWrapper:
 
         kwargs['_taskname']=self._taskname
 
-        task = self.task_class(self.func, self.output_types, self.input_spec,
+        task = self.task_class(self.func, self.descriptor,
                                 *args, **kwargs)
         # Unpack the tuple if necessary
         if len(task._outputs) == 1:

@@ -1,4 +1,5 @@
 from logical import flvar
+import inspect
 
 """
 Logic to define function input and output type signatures and to check
@@ -42,6 +43,77 @@ class InputSpec(object):
 
     def isMulti(self):
         return isinstance(self.fltype, Multiple)
+
+class TaskDescriptor(object):
+    """
+    Store type and do type checking for a task.
+    """
+    def __init__(self, wrapped, input_types, output_types):
+        """
+        wrapped is a funciton to be wrapped
+        input_types and output_types are lists or tuples
+        """
+        self.input_types = input_types
+        self.output_types = output_types
+        
+        rawspec = inspect.getargspec(wrapped)
+        arg_names = rawspec[0]
+        remainder_name = rawspec[1]
+
+        if remainder_name is None:
+            if len(arg_names) != len(self.input_types):
+                #TODO
+                raise Exception("Mismatch between function argument count %d \
+                        and input type tuple length %d for function %s" % (
+                        len(arg_names), len(self.input_types), 
+                        function.__name__))
+        else:
+            if len(arg_names) + 1 != len(self.input_types):
+                raise Exception("Mismatch between function argument count %d \
+                        and input type tuple length %d for function %s" % (
+                        len(arg_names)+1, len(self.input_types), 
+                        function.__name__))
+                
+        # Build the input specification for the function using introspection
+        self.input_spec = [InputSpec( name, t) 
+                    for t, name 
+                    in zip(self.input_types, arg_names)]
+
+        if remainder_name is not None:
+            self.input_spec.append(InputSpec(remainder_name,
+                    self.input_types[-1]))
+
+    def validate_inputs(self, args, kwargs):
+        return validate_inputs(self.input_spec, args, kwargs)
+
+    def validate_outputs(self, outputs):
+        """
+        Checks a list of outputs
+        """
+        # Pack into a tuple if needed
+        if not isinstance(outputs, (list, tuple)):
+            outputs = (outputs,)
+        if len(outputs) != len(self.output_types):
+            raise FlTypeError("_outputs must match length of output_types")
+        err = [(chan, t) for chan, t in zip(outputs, self.output_types)
+                if not issubclass(t, chan.__class__)]
+        if err:
+            raise FlTypeError("Output channel(s) of wrong type provided: %s"
+                % (repr(err)))
+
+    def make_outputs(self):
+        """
+        Initialize a set of output channels with correct type.
+        """
+        return [channel_cls() for channel_cls in self.output_types]
+    
+    def input_count(self):
+        return len(self.input_spec)
+
+    def zip(self, other):
+        return spec_zip(self.input_spec, other)
+    
+
 
 def isRaw(fltype):
     if isinstance(fltype, Multiple):
@@ -127,18 +199,18 @@ def validate_inputs(input_spec, args, kwargs):
 
         return call_args
 
-def spec_zip(inputs, input_spec):
+def spec_zip(input_spec, other):
     for i, spec in enumerate(input_spec):
         if spec.isMulti():
             if i != len(input_spec) - 1:
                 raise Exception("Unexpected problem: Multiple was not \
                     last type in input spec")
-            inlen = len(inputs)
-            while i < inlen:
+            othlen = len(other)
+            while i < othlen:
                 #TODO: hack
-                yield (inputs[i], spec)
+                yield spec, other[i]
                 i += 1
         else:
-            yield inputs[i], spec
+            yield spec, other[i]
     return
     

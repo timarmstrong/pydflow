@@ -44,7 +44,7 @@ class AtomicTask(Task):
         """
         input_data = []
         inputs = self._inputs
-        for inp, spec in self._input_iter():
+        for spec, inp in self._input_iter():
             if spec.isRaw():
                 input_data.append(inp)
             else:
@@ -53,7 +53,7 @@ class AtomicTask(Task):
         return input_data
 
     def _prep_channels(self):
-        for o, s in self._input_iter():
+        for s, o in self._input_iter():
             if not s.isRaw():
                 o._prepare(M_READ)
         # Ensure outputs can be written to

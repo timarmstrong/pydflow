@@ -83,8 +83,8 @@ def local_exec(task, input_values):
     
 
 class FuncTask(AtomicTask):
-    def __init__(self, func, output_types, input_spec, *args, **kwargs):
-        super(FuncTask, self).__init__(output_types, input_spec, *args, **kwargs)
+    def __init__(self, func, *args, **kwargs):
+        super(FuncTask, self).__init__(*args, **kwargs)
         self._func = func
 
     def _exec(self):
