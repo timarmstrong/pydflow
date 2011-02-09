@@ -1,0 +1,30 @@
+* NEED TO IMPLEMENT CLEANUP: remove tmp files, etc
+
+* App procedures: local and remote files
+* CUDA
+* Stack overflow avoidance?
+
+
+* Cleanup as you go :) :)
+* tmp file cleanup: can't rely on garbage collector to call __del__
+* Give jobs a chance ot start running: startup thread hogs graph mutex.
+* Variable length arg lists
+
+Typing:
+* Verify method to check that contents are of correct type?
+
+Recursion
+* Think about how to allow @func tasks to extend the DAG
+    - Note: determined that function name resolves to wrapped 
+        function in function body
+    - Does it make sense to somehow logically "unpack" the result if
+        there is a channel inside a channel
+    - Need to get current thread to work on another task.
+
+Programming Abstractions
+* ResultBag, ResultList
+* Parameter Sweep Primitives
+    - combinations, permutations, etc combined with imap
+* foldr, foldl, associative reduce (reduction tree), 
+    associative commutative reduce (build reduction tree in order of completion)
+* random number generations
