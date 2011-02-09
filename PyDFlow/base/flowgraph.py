@@ -21,6 +21,7 @@ from exceptions import *
 
 from threading import Lock
 import time
+import inspect
 
 
 graph_mutex = Lock()
@@ -118,7 +119,7 @@ class Task(object):
             if len(outputs) != len(output_types):
                 raise Exception("_outputs must match length of output_types")
             err = [(chan, t) for chan, t in zip(outputs, output_types)
-                    if not t.isinstance(chan)]
+                    if not issubclass(t, chan.__class__)]
             if err:
                 raise Exception("Output channel of wrong type provided")
         else:
@@ -238,7 +239,13 @@ class Channel(flvar):
         self._bound = _bind_location
         self._done_callbacks = []
         self._reliable = False
-   
+  
+    def __lshift__(self, oth):
+        return self.__ilshift__(oth)
+    
+    def __rshift__(self, oth):
+        return self.__irshift__(oth)
+
     def __ilshift__(self, oth):
         """
         "Assigns" the channel on the right hand side to this one.
@@ -248,7 +255,6 @@ class Channel(flvar):
         is redirected to the LHS channel and also that channel
         retains all the same settings as the LHS channel.
         """
-        #TODO: logic
         global graph_mutex
         graph_mutex.acquire()
         oth._replacewith(self)

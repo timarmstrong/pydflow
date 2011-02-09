@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 app_paths.add_path("./PyDFlow/examples/mergesort/")
 
 intfile = localfile.subtype()
-sorted_intfile = localfile.subtype()
+sorted_intfile = intfile.subtype()
 
 app_count = 0
 

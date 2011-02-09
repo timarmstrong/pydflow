@@ -70,13 +70,13 @@ def check_logicaltype(thetype, var, name=None):
                     var = var[0]
             except TypeError:
                 raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
-                    repr(name), repr(var)))
+                    repr(var), repr(var)))
             # check the subscripted type now
             if not isinstance(var, thetype):
                 raise FlTypeError("Var %s:%s not a subtype of specified type. \
                     Required type %s, actual type %s" % (
                     repr(name), repr(var), repr(thetype),
-                    type(var)))
+                    type(type(var))))
     return var 
 
 def validate_inputs(input_spec, args, kwargs):
