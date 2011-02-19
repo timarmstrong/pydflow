@@ -43,13 +43,14 @@ def execute_async(task):
     logging.debug("Added task to work queue")
     work_queue.put(task)
 
+PYFUN_THREAD_NAME = "pyfun"
 class WorkerThread(threading.Thread):
     """ 
     Worker thread class: repeatedly grabs callable items
     from work_queue, and runs them
     """
     def __init__(self, queue):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name=PYFUN_THREAD_NAME)
         self.queue = queue
         self.setDaemon(True) # Ensure threads will exit with application
 
@@ -65,3 +66,5 @@ class WorkerThread(threading.Thread):
                 traceback.print_exc()
             self.queue.task_done()
 
+def isWorkerThread():
+    return threading.current_thread().name == PYFUN_THREAD_NAME

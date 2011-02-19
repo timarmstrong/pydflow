@@ -33,6 +33,16 @@ class FutureChannel(AtomicChannel):
         """
         return self._future.isSet()
 
+    def _get(self):
+        # Make sure a worker thread doesn't block
+        #TODO
+#        if LocalExecutor.isWorkerThread():
+            
+        return super(FutureChannel, self)._get()
+
+def rec_exec(task):
+    pass
+
 
 def local_exec(task, input_values):
     # Update state so we know its running
