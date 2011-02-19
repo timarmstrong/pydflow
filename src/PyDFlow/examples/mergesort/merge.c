@@ -36,6 +36,8 @@ int main(int argc, char **argv) {
                         both_open = 0;
                         fclose(in1);
                         in_rem = in2;
+                        fprintf(out, "%d\n", n2);
+                        count++;
                     }
                 }
                 else {
@@ -45,6 +47,8 @@ int main(int argc, char **argv) {
                         both_open = 0;
                         fclose(in2);
                         in_rem = in1;
+                        fprintf(out, "%d\n", n1);
+                        count++;
                     }
                 }
             }

@@ -4,8 +4,11 @@ import datetime
 import sys
 import logging 
 import PyDFlow.app.paths as app_paths
+import os.path
 logging.basicConfig(level=logging.DEBUG)
-app_paths.add_path("./PyDFlow/examples/mergesort/")
+
+srcdir = os.path.dirname(__file__)
+app_paths.add_path(srcdir)
 
 intfile = localfile.subtype()
 sorted_intfile = intfile.subtype()
@@ -22,6 +25,14 @@ def merge(f1, f2):
     print f1, f2
     return "merge @f1 @f2 @output_0"
 
+@app((localfile), (localfile))
+def compile(src):
+    return "gcc -o @output_0 @src"
+
+def buildmerge():
+    bin = localfile.bind(os.path.join(srcdir, "merge")) <<  \
+        compile(localfile.bind(os.path.join(srcdir, "merge.c")))
+    bin.get()
 
 
 def merge_sort(unsorted):
