@@ -184,12 +184,9 @@ class AtomicChannel(Channel):
         
 
     def get(self):
-        acquire_global_mutex()
-        try: 
-            self._force()
-        finally:
-            release_global_mutex()
-        return self._future.get() # block on future
+        with graph_mutex:
+            res = self._get() 
+        return res  # block on future
 
     def _get(self):
         """
@@ -198,7 +195,11 @@ class AtomicChannel(Channel):
         Should have graph lock first.
         Only call when you are sure the channel has data ready for you.
         """
-        return self._future.get()
+        self._force()
+        graph_mutex.release()
+        res = self._future.get()
+        graph_mutex.acquire()
+        return res
 
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")
@@ -241,6 +242,10 @@ class AtomicChannel(Channel):
             raise Exception("Invalid state code: %d" % self._state)
 
     def readable(self):
+        with graph_mutex:
+            return self._readable()
+        
+    def _readable(self):
         """
         For atomic channels, it is readable either if it
         has been filled or it is bound.

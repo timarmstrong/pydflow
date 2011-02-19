@@ -44,7 +44,7 @@ class FileChannel(AtomicChannel):
         super(FileChannel, self).__init__(*args, **kwargs)
         self._temp_created=False
 
-    def openFile(self):
+    def open(self):
         """
         Returns a File-like object to read the file contents.
         This will block if the file's data is not yet available.

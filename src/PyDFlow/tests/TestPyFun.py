@@ -33,14 +33,19 @@ def cat(first, second):
 def cat2(*args):
     return "".join(args)
 
-@func((Int), (Int))
+@func((Int), (None))
 def rec_fib(n):
     if n == 0:
+        print "got: rec_fib(0) = 0"
         return 0
     elif n == 1:
+        print "got: rec_fib(1) = 1"
         return 1
     else:
-        return rec_fib(Int.bind(n-1)).get() + rec_fib(Int.bind(n-2)).get()
+        print "wait: rec_fib(%d)" % n
+        res = rec_fib(n-1).get() + rec_fib(n-2).get()
+        print "got: rec_fib(%d) = %d" % (n, res)
+        return res
         
 class TestPyFun(unittest.TestCase):
 
@@ -151,7 +156,7 @@ class TestPyFun(unittest.TestCase):
         """
         See if recursion works for small number of processes
         """
-        self.assertEquals(rec_fib(Int.bind(2)).get(), 1)
+        self.assertEquals(rec_fib(2).get(), 1)
         
     
     def testZZRecurse2(self):
@@ -160,7 +165,7 @@ class TestPyFun(unittest.TestCase):
         Have this as last test as it ties up lots of threads
         """
         # check that 
-        res = rec_fib(Int.bind(49))
+        res = rec_fib(49)
         from PyDFlow.futures import Future
         resslot = Future()
         def waiter():
@@ -172,6 +177,7 @@ class TestPyFun(unittest.TestCase):
         # 10 seconds
         print "waiting for fibonacci result"
         for i in range(10):
+        #while True:
             if resslot.isSet():
                 self.assertEquals(resslot.get(), 7778742049)
             print ".",

@@ -1,5 +1,5 @@
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
-from PyDFlow.base.flowgraph import acquire_global_mutex, release_global_mutex
+from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.states import *
 from PyDFlow.futures import *
 import LocalExecutor
@@ -36,10 +36,36 @@ class FutureChannel(AtomicChannel):
     def _get(self):
         # Make sure a worker thread doesn't block
         #TODO
-#        if LocalExecutor.isWorkerThread():
-            
-        return super(FutureChannel, self)._get()
-
+        print "get!"
+        print  LocalExecutor.isWorkerThread()
+        print self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]
+        print self._bound
+        print self._in_tasks
+        if (not self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED] )\
+                and LocalExecutor.isWorkerThread():
+            self._force_by_worker()    
+        res = super(FutureChannel, self)._get()
+        return res
+    
+    def _force_by_worker(self):
+        """
+        Get a worker to iterate down the function graph, running dependent tasks.
+        Assumes that has not been filled.
+        """
+        #for inp in self._in_tasks[1:]:
+            # already have lock
+         #   inp._force()
+        self._force()
+        while not self._future.isSet():
+            graph_mutex.release()
+            try:
+                print "running a different task"
+                LocalExecutor.run_one_task()
+            finally:
+                graph_mutex.acquire()
+        
+        
+        
 def rec_exec(task):
     pass
 
@@ -52,16 +78,15 @@ def local_exec(task, input_values):
 
     #TODO: tag failed tasks with exception?
     # In general need to work out failure handling logic
-    try: 
+    #try: 
         # Run the function in this thread
-        return_val = task._func(*(input_values))
-    except Exception, e:
-        task.state = T_ERROR
-        raise Exception("Loclly executed task threw exception %s" % repr(e))
+    return_val = task._func(*(input_values))
+    #except Exception, e:
+    #    task.state = T_ERROR
+    #    raise Exception("Locally executed task threw exception %s" % repr(e))
 
 
-    acquire_global_mutex()
-    try:
+    with graph_mutex:
         if return_val is None:
             task.state = T_ERROR
             #TODO: exception type
@@ -87,9 +112,6 @@ def local_exec(task, input_values):
             task.state = T_DONE_SUCCESS
             for val, chan in zip(return_vals, task._outputs) :
                 chan._set(val)
-    #TODO: handle exceptions that occur when setting channel
-    finally:    
-        release_global_mutex()
     
 
 class FuncTask(AtomicTask):

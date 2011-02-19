@@ -54,15 +54,21 @@ class WorkerThread(threading.Thread):
 
     def run(self):
         while True: #TODO: terminate condition
-            task = self.queue.get()
-            try: 
-                logging.debug("python_executor: %s starting task" % self.getName())
-                task()
-                logging.debug("python_executor: %s finished task" % self.getName())
-            except:
-                sys.stderr.write("Worker thread threw an exception during task:")
-                traceback.print_exc()
-            self.queue.task_done()
+            self.run_one()
+            
+    def run_one(self):
+        task = self.queue.get()
+        try: 
+            logging.debug("python_executor: %s starting task" % self.getName())
+            task()
+            logging.debug("python_executor: %s finished task" % self.getName())
+        except:
+            sys.stderr.write("Worker thread threw an exception during task:")
+            traceback.print_exc()
+        self.queue.task_done()
+
+def run_one_task():
+    threading.current_thread().run_one()
 
 def isWorkerThread():
     return threading.current_thread().name == PYFUN_THREAD_NAME
