@@ -13,7 +13,8 @@ assume that any looks are held.
 
 import PyDFlow.futures
 import logging
-from PyDFlow.types import flvar 
+from PyDFlow.types import flvar
+from PyDFlow.types.check import FlTypeError  
 
 from states import *
 from exceptions import *
@@ -175,12 +176,8 @@ class Task(object):
         I.e. if it is runnable, start it running, otherwise make sure that
         the task's inputs will be filled.
         """
-        global graph_mutex
-        graph_mutex.acquire()
-        try: 
+        with graph_mutex: 
             self._force()
-        finally:
-            graph_mutex.release()
 
     def _force(self):
         logging.debug("Task %s forced, state is %d" % (repr(self), self._state))
@@ -245,20 +242,16 @@ class Channel(flvar):
         is redirected to the LHS channel and also that channel
         retains all the same settings as the LHS channel.
         """
-        global graph_mutex
-        graph_mutex.acquire()
-        oth._replacewith(self)
-        graph_mutex.release()
+        with graph_mutex:
+            oth._replacewith(self)
         return self
     
     def __irshift__(self, oth):
         """
         Same as ilshift but injecting LHS into RHS
         """
-        global graph_mutex
-        graph_mutex.acquire()
-        self._replacewith(oth)
-        graph_mutex.release()
+        with graph_mutex:
+            self._replacewith(oth)
         return oth
 
     def _replacewith(self, other):
@@ -271,6 +264,8 @@ class Channel(flvar):
         that all tasks with output going into other are redirected 
         here.
         """
+        if not isinstance(self, other.__class__):
+            raise FlTypeError("type of %s is not supertype of %s", repr(other), repr(self))
         for t in self._in_tasks:
             t._output_replace(self, other)
         # TODO: right?
@@ -333,7 +328,7 @@ class Channel(flvar):
     def add_input(self, input_task):
         global graph_mutex
         graph_mutex.acquire()
-        self._register_output(output_task)
+        self._register_output(input_task)
         graph_mutex.release()
 
     def add_output(self, input_task):
@@ -390,7 +385,7 @@ class Channel(flvar):
 
         This should be overridden as it depends on the type of channel.
         """
-        raise UnimplementException("readable is not implemented")
+        raise UnimplementedException("readable is not implemented")
 
     @classmethod
     def bind(cls, location):

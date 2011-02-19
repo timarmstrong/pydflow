@@ -146,7 +146,7 @@ class TestPyFun(unittest.TestCase):
         def isWorker():
             return isWorkerThread()
         self.assertTrue(isWorker().get())
-        
+       
     def testRecurse1(self):
         """
         See if recursion works for small number of processes
