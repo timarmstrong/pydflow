@@ -4,6 +4,8 @@ Created on 19/02/2011
 @author: tim
 '''
 import unittest
+import time
+
 from PyDFlow.PyFun import future, func
 from PyDFlow.base.states import *
 import threading as th
@@ -31,7 +33,16 @@ def cat(first, second):
 def cat2(*args):
     return "".join(args)
 
-class Test(unittest.TestCase):
+@func((Int), (Int))
+def rec_fib(n):
+    if n == 0:
+        return 0
+    elif n == 1:
+        return 1
+    else:
+        return rec_fib(Int.bind(n-1)).get() + rec_fib(Int.bind(n-2)).get()
+        
+class TestPyFun(unittest.TestCase):
 
 
     def setUp(self):
@@ -127,7 +138,47 @@ class Test(unittest.TestCase):
             self.assertTrue(sorted[i] <= sorted[i+1], 
                     "%d > %d at pos %i in sorted array %s" % (
                             sorted[i], sorted[i+1], i, as_str))
+            
+    def testWorkerThread(self):
+        from PyDFlow.PyFun.LocalExecutor import isWorkerThread
+        self.assertFalse(isWorkerThread())
+        @func((future), ())
+        def isWorker():
+            return isWorkerThread()
+        self.assertTrue(isWorker().get())
         
+    def testRecurse1(self):
+        """
+        See if recursion works for small number of processes
+        """
+        self.assertEquals(rec_fib(Int.bind(2)).get(), 1)
+        
+    
+    def testZZRecurse2(self):
+        """
+        See if recursion fails for large number of processes.
+        Have this as last test as it ties up lots of threads
+        """
+        # check that 
+        res = rec_fib(Int.bind(49))
+        from PyDFlow.futures import Future
+        resslot = Future()
+        def waiter():
+            resslot.set(res.get())
+        t = th.Thread(target=waiter)
+        t.start()
+        
+        
+        # 10 seconds
+        print "waiting for fibonacci result"
+        for i in range(10):
+            if resslot.isSet():
+                self.assertEquals(resslot.get(), 7778742049)
+            print ".",
+            time.sleep(1)
+        self.fail("Ran out of time waiting for recursive fibonacci calc")
+        
+    
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

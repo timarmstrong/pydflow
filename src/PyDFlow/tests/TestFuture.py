@@ -8,7 +8,7 @@ from PyDFlow.futures import Future
 import threading as th
 
 
-class Test(unittest.TestCase):
+class TestFuture(unittest.TestCase):
 
 
     def setUp(self):

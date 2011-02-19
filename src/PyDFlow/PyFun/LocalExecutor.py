@@ -21,9 +21,9 @@ structure_lock = threading.Lock()
 work_queue = None
 workers = []
 
-def ensure_init():
+
+def init():
     global structure_lock, work_queue, workers
-    structure_lock.acquire()
     if work_queue is None:
         logging.debug("Initialising thread pool")
         work_queue = Queue.Queue()
@@ -32,18 +32,16 @@ def ensure_init():
             workers.append(t)
             t.start()
 
-    structure_lock.release()
 
 def execute_async(task):
     """
     Takes an object callable with no arguments, and executes it
     at some point in the future
     """
-    ensure_init()
     logging.debug("Added task to work queue")
     work_queue.put(task)
 
-PYFUN_THREAD_NAME = "pyfun"
+PYFUN_THREAD_NAME = "pyfun_thread"
 class WorkerThread(threading.Thread):
     """ 
     Worker thread class: repeatedly grabs callable items
@@ -68,3 +66,6 @@ class WorkerThread(threading.Thread):
 
 def isWorkerThread():
     return threading.current_thread().name == PYFUN_THREAD_NAME
+
+
+init()
