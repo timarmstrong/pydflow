@@ -1,2 +1,2 @@
 from logical import flvar, _
-from check import Multiple
+from check import Multiple, FlTypeError
