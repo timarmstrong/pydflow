@@ -1,14 +1,47 @@
 import Queue
-from itertools import islice, imap
+from itertools import islice, imap, izip
 import logging
+import heapq
 
-
-def resultbag(channels, channel_ids=None, max_running=None):
+def resultlist(channels, max_ready=None):
+    """
+    Take a bunch of channels, start them running and return results in 
+    in the order provided
+    """
+    # Use the resultbag as the execution mechanism and reassemble into
+    # correct order here
+    next_id = 0
+    
+    # Heap of results to be returns
+    done = []
+    
+    class HeapObj:
+        def __init__(self, ix, item):
+            self.ix = ix
+            self.item = item
+            
+        def __cmp__(self, oth):
+            return cmp(self.ix, oth.ix)
+    
+    for i, res in resultbag(channels, max_ready=max_ready):
+        if i == next_id:
+            yield res
+            next_id += 1
+            while done != [] and done[0].ix == next_id:
+                ho = heapq.heappop(done)
+                yield ho.item
+                next_id += 1
+        else:
+            heapq.heappush(done, HeapObj(i, res))
+    while done != []:
+        yield heapq.heappop(done).item
+        
+def resultbag(channels, channel_ids=None, max_ready=None):
     """
     Take a bunch of channels, start them running and iterate over
     the results in the order they finish.
 
-    max_running limits the number of tasks that will be launched at
+    max_ready limits the number of tasks that will be launched at
     one time
     """
     finishedq = Queue.Queue()
@@ -26,10 +59,10 @@ def resultbag(channels, channel_ids=None, max_running=None):
     
     outstanding = {} 
     noutstanding = 0
-    max_running = max_running
+
     for id, chan in iter:
         # Bound the number of outstanding requests
-        while max_running and noutstanding >= max_running:
+        while max_ready and noutstanding >= max_ready:
             # wait for something to finish before running
             finished = finishedq.get()
             fin_id = outstanding.pop(finished)
@@ -118,3 +151,20 @@ def dynreduce(reducefun, args):
     # Last task will be the final product
     return finishedq.get()
 
+
+    
+
+
+def foldl(fn, init, lst):
+    for accum in scanl(fn, init, lst):
+        pass
+    return accum
+
+def scanl(fn, init, ls):
+    # TODO: check that fn has signature (b, a) => b
+    # then we can disable type checking for run
+    accum = init
+    yield accum
+    for a in ls:
+        accum = fn(accum, a)
+        yield accum
