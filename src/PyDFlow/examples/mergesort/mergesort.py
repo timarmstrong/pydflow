@@ -1,10 +1,13 @@
 #!/usr/bin/python
 from PyDFlow.app import *
+from PyDFlow.base.patterns import treereduce
 import datetime
 import sys
 import logging 
 import PyDFlow.app.paths as app_paths
 import os.path
+
+
 #logging.basicConfig(level=logging.DEBUG)
 
 srcdir = os.path.dirname(__file__)
@@ -27,7 +30,7 @@ def merge(f1, f2):
 def compile(src):
     return "gcc -o @output_0 @src"
 
-def buildmerge():
+def do_compile():
     bin = localfile.bind(os.path.join(srcdir, "merge")) <<  \
         compile(localfile.bind(os.path.join(srcdir, "merge.c")))
     bin.get()
@@ -37,8 +40,11 @@ def merge_sort(unsorted):
     global app_count
     print "sorting %d unsorted files" % (len(unsorted))
     # Sort all the individual files
-    sorted = map(sort, unsorted)
+    sorted = [sort(f) for f in unsorted]
     app_count += len(sorted)
+    # NOTE: could replace below with:
+    #return treereduce(merge, sorted)
+
     # Merge them all hierarchically
     while len(sorted) > 1:
         odds = sorted[::2]
@@ -56,11 +62,15 @@ def merge_sort(unsorted):
     return sorted[0]
 
 def main():
-    buildmerge()
+    do_compile()
 
+    filenames = sys.argv[1:]
+    if len(filenames) == 0:
+        print "USAGE: mergesort.py <files of integers>"
+        return
     start_t = datetime.datetime.now()
     output = sorted_intfile.bind("mergesorted.txt")
-    output <<= merge_sort([intfile.bind(f) for f in sys.argv[1:]])
+    output <<= merge_sort([intfile.bind(f) for f in filenames])
 
     # Need to call get() to initiate the sorting
     graph_built_t = datetime.datetime.now()
