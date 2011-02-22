@@ -42,10 +42,11 @@ def merge_sort(unsorted):
     # Sort all the individual files
     sorted = [sort(f) for f in unsorted]
     app_count += len(sorted)
-    # NOTE: could replace below with:
-    #return treereduce(merge, sorted)
+    return treereduce(merge, sorted)
 
+    # Note: could also code as below:.
     # Merge them all hierarchically
+    """
     while len(sorted) > 1:
         odds = sorted[::2]
         evens = sorted[1::2]
@@ -60,6 +61,7 @@ def merge_sort(unsorted):
         else:
             sorted = next
     return sorted[0]
+    """
 
 def main():
     do_compile()
