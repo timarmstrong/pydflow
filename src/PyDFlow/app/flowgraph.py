@@ -103,7 +103,6 @@ class FileChannel(AtomicChannel):
         """
         # Don't lock, as GC was called can assume that no references held
         logging.debug("__del__ called on File channel")
-        print "__del__ called"
         if self._temp_created: 
              self._cleanup_tmp()
 

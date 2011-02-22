@@ -1,3 +1,4 @@
+from __future__ import with_statement
 from flowgraph import Task, Channel
 from states import *
 from PyDFlow.futures.futures import Future

@@ -1,3 +1,4 @@
+from __future__ import with_statement
 """
 Implements the FlowGraph, a bipartite graph of Tasks and Channels which
 represents the program to be executed.

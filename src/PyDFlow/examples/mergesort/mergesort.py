@@ -5,7 +5,7 @@ import sys
 import logging 
 import PyDFlow.app.paths as app_paths
 import os.path
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 srcdir = os.path.dirname(__file__)
 app_paths.add_path(srcdir)
@@ -17,12 +17,10 @@ app_count = 0
 
 @app((sorted_intfile), (intfile))
 def sort(file):
-    print file
     return "sort -n @file -o @output_0"
 
 @app((sorted_intfile), (sorted_intfile, sorted_intfile))
 def merge(f1, f2):
-    print f1, f2
     return "merge @f1 @f2 @output_0"
 
 @app((localfile), (localfile))
@@ -58,6 +56,8 @@ def merge_sort(unsorted):
     return sorted[0]
 
 def main():
+    buildmerge()
+
     start_t = datetime.datetime.now()
     output = sorted_intfile.bind("mergesorted.txt")
     output <<= merge_sort([intfile.bind(f) for f in sys.argv[1:]])

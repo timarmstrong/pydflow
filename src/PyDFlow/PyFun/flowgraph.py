@@ -1,7 +1,10 @@
+from __future__ import with_statement
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.states import *
 from PyDFlow.futures import *
+
+
 import LocalExecutor
 
 import logging
@@ -36,11 +39,6 @@ class FutureChannel(AtomicChannel):
     def _get(self):
         # Make sure a worker thread doesn't block
         #TODO
-        print "get!"
-        print  LocalExecutor.isWorkerThread()
-        print self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]
-        print self._bound
-        print self._in_tasks
         if (not self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED] )\
                 and LocalExecutor.isWorkerThread():
             self._force_by_worker()    
