@@ -66,13 +66,13 @@ class TaskDescriptor(object):
                 raise Exception("Mismatch between function argument count %d \
                         and input type tuple length %d for function %s" % (
                         len(arg_names), len(self.input_types), 
-                        function.__name__))
+                        wrapped.__name__))
         else:
             if len(arg_names) + 1 != len(self.input_types):
                 raise Exception("Mismatch between function argument count %d \
                         and input type tuple length %d for function %s" % (
                         len(arg_names)+1, len(self.input_types), 
-                        function.__name__))
+                        wrapped.__name__))
                 
         # Build the input specification for the function using introspection
         self.input_spec = [InputSpec( name, t) 

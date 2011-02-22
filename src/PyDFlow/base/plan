@@ -1,0 +1,46 @@
+IDEA: 
+   * push the graph traversal logic up to the "atomic" level
+   
+   		- If it encounters anything non-atomic, _force and wait ?????
+   			- More sophisticated strategy for later:
+   							- Spawn another worker thread temporarily?
+   								* use a mutex/ cvar to ensure only this thread
+   									or its child is running?  
+   							
+   * The _exec_task() method should take a continuation
+   		that will be called when the task finishes
+   * In the case of an @app task, it will work out the @app string (calling anything
+   	recursively if needed) and then hand off the task to an executor. 
+   	When the executor completes, continuation is called
+   * In the case of a @func task, it will just run the function and call the continuation
+
+
+
+
+Entry Points:
+
+Channel:
+	get() => If called by worker thread, _worker_force:
+			Otherwise _force()  then block.  
+			If worker thread _force should enable all inputs
+			before it returns
+	
+	_force() => 
+				If worker thread this is complicated: we need to go through
+				all the work to try see if we can enable the channel
+	
+	_worker_run(tasks) =>  
+			
+			When looking at input task, 
+				                { If ready to run, this thread runs the task
+				                {		once the task is done, pop a task off the deque
+					            { Otherwise, look through channels					 
+			When looking at channel,
+								{ add n - 1 input tasks to own deque
+						  		{ then call _worker_run() on one input task
+Task:
+	_force()	{ Add to queue 
+	
+	
+
+	

@@ -3,13 +3,10 @@ from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import graph_mutex
 from PyDFlow.base.states import *
 from PyDFlow.futures import *
+import PyDFlow.base.LocalExecutor as LocalExecutor
 
-
-import LocalExecutor
 
 import logging
-
-
 
 class FutureChannel(AtomicChannel):
 
@@ -35,7 +32,7 @@ class FutureChannel(AtomicChannel):
         channel now
         """
         return self._future.isSet()
-
+    
     def _get(self):
         # Make sure a worker thread doesn't block
         #TODO
@@ -44,72 +41,7 @@ class FutureChannel(AtomicChannel):
             self._force_by_worker()    
         res = super(FutureChannel, self)._get()
         return res
-    
-    def _force_by_worker(self):
-        """
-        Get a worker to iterate down the function graph, running dependent tasks.
-        Assumes that has not been filled.
-        """
-        #for inp in self._in_tasks[1:]:
-            # already have lock
-         #   inp._force()
-        self._force()
-        while not self._future.isSet():
-            graph_mutex.release()
-            try:
-                print "running a different task"
-                LocalExecutor.run_one_task()
-            finally:
-                graph_mutex.acquire()
         
-        
-        
-def rec_exec(task):
-    pass
-
-
-def local_exec(task, input_values):
-    # Update state so we know its running
-    logging.debug("Running task %s with inputs %s" %(repr(task), repr(input_values)))
-    #Don't bother grabbing - not critical that update is immediate
-    task._state = T_RUNNING
-
-    #TODO: tag failed tasks with exception?
-    # In general need to work out failure handling logic
-    #try: 
-        # Run the function in this thread
-    return_val = task._func(*(input_values))
-    #except Exception, e:
-    #    task.state = T_ERROR
-    #    raise Exception("Locally executed task threw exception %s" % repr(e))
-
-
-    with graph_mutex:
-        if return_val is None:
-            task.state = T_ERROR
-            #TODO: exception type
-            raise Exception("Got None return value")
-        
-        # Fill in all the output channels
-        if len(task._outputs) == 1:
-            # Update current state, then pass data to channels
-            task.state = T_DONE_SUCCESS
-            task._outputs[0]._set(return_val)
-        else:
-            try:  
-                return_vals = tuple(return_val)
-            except TypeError:
-                #TODO: exception types
-                task.state = T_ERROR
-                raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
-            if len(return_vals) != len(task._outputs):
-                task.state = T_ERROR
-                raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
-
-            # Update current state, then pass data to channels
-            task.state = T_DONE_SUCCESS
-            for val, chan in zip(return_vals, task._outputs) :
-                chan._set(val)
     
 
 class FuncTask(AtomicTask):
@@ -117,15 +49,47 @@ class FuncTask(AtomicTask):
         super(FuncTask, self).__init__(*args, **kwargs)
         self._func = func
 
-    def _exec(self):
-        logging.debug("Starting a FuncTask")
+
+
+    def _exec(self, continuation):
+        """
+        Just run the task in the current thread, 
+        assuming it is ready
+        """
+        logging.debug("Starting a FuncTask %s" % repr(self))
         #TODO: select execution backend, run me!
-        # Build closure for executor
-        self._prep_channels()
-        # grab the input values while we have a lock
-        input_values = self._gather_input_values()
-        def do():
-            local_exec(self, input_values)
-        LocalExecutor.execute_async(do)
-
-
+        
+        with graph_mutex:
+            # Set things up
+            # Check state again to be sure it is sensible
+            if self._state == T_QUEUED:
+                self._prep_channels()
+                input_values = self._gather_input_values()
+                self._state = T_RUNNING
+            elif self._state in [T_RUNNING, T_DONE_SUCCESS]:
+                #TODO: safe I think
+                return
+            else:
+                # Bad state
+                # TODO: better logic
+                raise Exception("Invalid task state %s encountered by worker thread" % 
+                                    (task_state_name[self._state]))
+        
+        # Update state so we know its running
+        #logging.debug("Running %s with inputs %s" %(repr(self), repr(input_values)))
+    
+        #TODO: tag failed tasks with exception?
+        # In general need to work out failure handling logic
+        try: 
+            # Run the function in this thread
+            return_val = self._func(*(input_values))
+            #logging.debug("%s returned %s" %(repr(self), repr(return_val)))
+        except Exception, e:
+            with graph_mutex:
+                self.state = T_ERROR
+                raise Exception("Locally executed task threw exception %s" % repr(e))
+            
+        with graph_mutex:
+            continuation(self, return_val)
+        
+        

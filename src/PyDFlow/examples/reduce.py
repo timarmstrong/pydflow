@@ -10,17 +10,22 @@ import logging
 
 Int = future.subtype()
 
-nums = [random.randint(0,100) for i in range(1000)]
-#nums = [1,2,4,8]
-
-bound = map(Int.bind, nums)
 
 @func((Int), (Int, Int))
 def add(x, y):
     return x + y
 
-print "sum(nums) = %d" % sum(nums)
+def genlist():
+    nums = [random.randint(0,100) for i in range(1000)]
+    #nums = [1,2,4,8]
 
-print "treereduce(add, bound).get() = %d" % treereduce(add, bound).get()
+    return nums, map(Int.bind, nums)
 
-print "dynreduce(add, bound).get() = %d" % dynreduce(add, bound).get()
+
+if __name__ == "__main__":
+    nums, boundnums = genlist()
+    print "sum(nums) = %d" % sum(nums)
+    
+    print "treereduce(add, bound).get() = %d" % treereduce(add, boundnums).get()
+    
+    print "dynreduce(add, bound).get() = %d" % dynreduce(add, boundnums).get()

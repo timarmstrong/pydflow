@@ -5,6 +5,8 @@ from PyDFlow import *
 import logging
 import random
 
+logging.basicConfig(level=logging.DEBUG)
+
 Int = future.subtype()
 
 @func((Int), ())
@@ -87,7 +89,6 @@ def merge_sort(xs):
             in zip(odds, evens)]
             + spare)
 #        print "Down to level of %d numbers" % len(lol)
-
     graph_built_t = datetime.datetime.now()
 #    print "%d apps built into graph in %s" % (app_count, graph_built_t - start_t)
     return lol[0]

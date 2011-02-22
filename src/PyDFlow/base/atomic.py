@@ -10,6 +10,8 @@ import threading
 from itertools import izip
 import logging
 
+import LocalExecutor
+
 
 class AtomicTask(Task):
     """
@@ -34,7 +36,10 @@ class AtomicTask(Task):
             if self._state == T_INACTIVE:
                 self._state = T_DATA_READY
             elif self._state == T_DATA_WAIT:
-                self._startme()
+                # Thread should be in executor's deque.  
+                # so now it is queued to run 
+                self._state = T_QUEUED
+            logging.debug("%s changed state" % repr(self))
 
     def _gather_input_values(self):
         """
@@ -61,7 +66,24 @@ class AtomicTask(Task):
         for o in self._outputs:
             o._prepare(M_WRITE)
 
-
+    def _force(self):
+        """
+        Add to work queue
+        """
+        logging.debug("Force tasks %s" % repr(self))
+        if self._state in [T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT]:
+            # Already enqueued
+            return
+        elif self._state == T_DATA_READY:
+            self._state = T_QUEUED
+        elif self._state == T_INACTIVE:
+            self._state = T_DATA_WAIT
+        elif self._state == T_ERROR:
+            raise Exception("Forcing task which had a previous error")
+        else:
+            raise Exception("Invalid state %d" % self.state)
+        
+        LocalExecutor.force_async(self)
 
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
@@ -196,7 +218,12 @@ class AtomicChannel(Channel):
         Should have graph lock first.
         Only call when you are sure the channel has data ready for you.
         """
-        self._force()
+        if LocalExecutor.isWorkerThread():
+            if  not self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]:
+                threading.current_thread().force_recursive(self)    
+                return 
+        else:
+            self._force()
         graph_mutex.release()
         res = self._future.get()
         graph_mutex.acquire()
@@ -205,19 +232,37 @@ class AtomicChannel(Channel):
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")
 
-    def _force(self, done_callback=None):
-        logging.debug("Atomic Channel forced")
-        if done_callback is not None:
-            self._done_callbacks.append(done_callback)
-
-        if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
+    def _try_readable(self):
+        logging.debug("_try_readable on %s" % repr(self))
+        if self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW]:
+            return True
+        elif self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
             if self._bound is not None and self._in_tasks == []:
                 if self._has_data():
                     # Data might be there, assume that binding was correct
                     self._prepare(M_WRITE)
                     self._set(self._bound)
+                    return True
                 else: 
-                    raise Exception("Forcing bound channel with no associated data")
+                    raise Exception("Bound channel with no input tasks and no associated data")
+        elif self._state in [CH_ERROR]:
+            #TODO: propagate error
+            raise Exception("Encounter CH_ERROR")
+        else:
+            return False
+                    
+
+
+    def _force(self, done_callback=None):
+        logging.debug("Atomic Channel forced")
+        if done_callback is not None:
+            self._done_callbacks.append(done_callback)
+
+        #TODO: refactor this so that there is a separate function 
+        # which tries to open the channels and put data in it
+        if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
+            if self._bound is not None and self._in_tasks == []:
+                self._try_readable()
             elif self._in_tasks != []:
                 # Enable task to be run, but
                 # input tasks should be run first

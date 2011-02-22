@@ -12,7 +12,6 @@ A method or field without such a prefix is intended for external use, and will n
 assume that any looks are held.
 """
 
-import PyDFlow.futures
 import logging
 from PyDFlow.types import flvar
 from PyDFlow.types.check import FlTypeError  
@@ -42,7 +41,7 @@ def doyield():
     global yield_counter
     # Give executor a chance to grab global lock
     if yield_counter >= YIELD_INTERVAL:
-        yield_count = 0
+        yield_counter = 0
         global graph_mutex
         graph_mutex.release()
         logging.debug("_force yielded")
@@ -65,6 +64,7 @@ class Task(object):
         
         self._taskname = taskname
         self._descriptor = descriptor
+        
 
         # Validate the function inputs.  note: this will consume
         # kwargs that match task input arguments
@@ -77,7 +77,8 @@ class Task(object):
             graph_mutex.release()
     
     def __repr__(self):
-        return "<PyDFlow Task Instance: %s>" % repr(self._taskname)
+        return "<PyDFlow Task %x: %s | %s | >" % (id(self), repr(self._taskname), 
+                                                     task_state_name[self._state])
 
 
     def __setup_inputs(self):
@@ -93,8 +94,21 @@ class Task(object):
         self._inputs_notready_count = not_ready_count
         self._inputs_ready = inputs_ready
 
-    def _all_inputs_ready(self):
-        return self._inputs_notready_count == 0
+    def _all_inputs_ready(self, callback=None):
+        """
+        Returns True if all inputs ready to be opened for reading.
+        A callback can be registered that will be called when this
+        becomes true.
+        """
+        if self._inputs_notready_count == 0:
+            return True
+        elif callback is not None:
+            # Avoid adding to object unless needed
+            if not hasattr(self, '_ready_callbacks'):
+                self._ready_callbacks = [callback]
+            else:
+                self._ready_callbacks.append(callback)
+        return False
 
     def _input_iter(self):
         """
@@ -151,10 +165,13 @@ class Task(object):
     
     def _input_readable(self, input, oldstate, newstate):
         """
-        To be overridden in child class.  Called when an input changes
-        state to one where there is some valid data in the channel from
-        one in which nothing could be read in the channel.
-        Determines what happens when an input channel changes state.
+        Called when an input changes state to one where there is some
+        valid data in the channel from one in which nothing could be
+        read in the channel.
+        This keeps track of the number of the number of not ready channels
+        and calls back all callbacks registered in self._all_inputs_ready 
+        
+        Can be overridden in a child class but this version must be called 
         """
         # Check may be overly defensive here
         for ix, inp in enumerate(self._inputs):
@@ -162,6 +179,14 @@ class Task(object):
                 if not self._inputs_ready[ix]:
                     self._inputs_notready_count -= 1
                     self._inputs_ready[ix] = True
+        
+        # Callback all registered functions 
+        if self._inputs_notready_count == 0:
+            # TODO: delete _inputs_ready?
+            if hasattr(self, '_ready_callbacks'):
+                for c in self._ready_callbacks:
+                    c()
+                delattr(self, '_ready_callbacks')
 
     def _output_replace(self, old, new):
         """
@@ -207,6 +232,9 @@ class Task(object):
         res = self._state
         graph_mutex.release()
         return res
+    def set_state(self, state):
+        with graph_mutex:
+            self._state = state
 
 
 class Channel(flvar):
@@ -395,3 +423,7 @@ class Channel(flvar):
         object or location.
         """
         return cls(_bind_location=location)
+    
+    def set_state(self, state):
+        with graph_mutex:
+            self._state = state

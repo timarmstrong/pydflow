@@ -5,6 +5,7 @@ Created on 19/02/2011
 '''
 import unittest
 import time
+import logging
 
 from PyDFlow.PyFun import future, func
 from PyDFlow.base.states import *
@@ -16,6 +17,8 @@ import PyDFlow.examples.PyFun as ex
 
 Int = future.subtype()
 String = future.subtype()
+logging.basicConfig(level=logging.DEBUG)
+
 
 @func((Int), ())
 def one():
@@ -145,7 +148,7 @@ class TestPyFun(unittest.TestCase):
                             sorted[i], sorted[i+1], i, as_str))
             
     def testWorkerThread(self):
-        from PyDFlow.PyFun.LocalExecutor import isWorkerThread
+        from PyDFlow.base.LocalExecutor import isWorkerThread
         self.assertFalse(isWorkerThread())
         @func((future), ())
         def isWorker():

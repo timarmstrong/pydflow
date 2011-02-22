@@ -1,3 +1,16 @@
+"""
+Refactoring plan:
+
+request queue which receives tasks to run.
+notification queue which sends back notifications
+notification thread running in this process which calls continuations.
+
+    This server could run in a separate process using the multiprocessing module.
+    MAX_RUNNING worker threads which correspond to forked processes.
+    
+    
+"""
+
 import subprocess
 import threading
 import Queue
@@ -91,10 +104,11 @@ class MonitorThread(threading.Thread):
 
 
 class AppQueueEntry(object):
-    def __init__(self, task):
+    def __init__(self, task, continuation):
         """
         Std*_file should all be file paths
         """
+        self.continuation = continuation
         self.task = task
         self.process = None
         self.exit_code = None
@@ -144,10 +158,11 @@ class AppQueueEntry(object):
     def do_callback(self):
         if self.process is None:
             raise Exception("Process has not yet been run, can't callback")
-        self.task.finished_callback(self.process)
+        with graph_mutex:
+            self.continuation(self.task, [ch._bound for ch in self.task._outputs])
 
 
-def launch_app(task):
+def launch_app(task, continuation):
     """
     Launch a process using Popen, with cmd_args
     
@@ -160,7 +175,7 @@ def launch_app(task):
     """
     ensure_init()
     logging.debug("Added app %s to work queue" % repr(task))
-    entry = AppQueueEntry(task)
+    entry = AppQueueEntry(task, continuation)
     work_added.acquire()
     work_queue.put(entry)
     work_added.notify()

@@ -118,9 +118,6 @@ class FileChannel(AtomicChannel):
     def _cleanup_tmp(self):
         raise UnimplementedException("_cleanup_tmp was not overridden")
 
-    def _write_done(self):
-        logging.debug("Write done on %s" % repr(self))
-        self._set(self._bound)
 
 class LocalFileChannel(FileChannel):
     def __init__(self, *args, **kwargs):
@@ -177,25 +174,29 @@ class AppTask(AtomicTask):
         super(AppTask, self).__init__(*args, **kwargs)
         self._func = func
         self._input_data = None
+        self._in_exec_queue = False
     
-    def _exec(self):
+    def _exec(self, continuation):
+        
         # Lock while we gather up the input and output channels
-
-        #TODO: note, can the function really mess things up here 
-        # by calling "get()"
-        # or something similar on one of the input channels
         logging.debug("Gathering input values for %s" % repr(self))
         logging.debug("Inputs: %s" %(repr(self._inputs)))
-        self._input_data = self._gather_input_values()
+        with graph_mutex:
+            # Ensure only run once
+            if self._in_exec_queue:
+                # Another thread got here first
+                return
+            else:
+                self._in_exec_queue = True
+            self._input_data = self._gather_input_values()
         logging.debug("Input values were %s" % repr(self._input_data))
         
 
         # TODO: set intermediate states - RUNNING, etc
-        self._state = T_QUEUED
-        
         logging.debug("Starting an AppTask")
+        
         # Launch the executable using backend module, attach a callback
-        localexec.launch_app(self)
+        localexec.launch_app(self, continuation)
     
     def _prepare_command(self):
         """
@@ -247,18 +248,5 @@ class AppTask(AtomicTask):
         # Don't acquire lock: the timing of this state
         # change is not critical
         self._state = T_RUNNING
-
-    def finished_callback(self, popen):
-        # Set all the output channels, trusting executable to have
-        # done the right thing
-        # TODO: check that files were created?
-        logging.debug("%s finished" % repr(self))
-        global graph_mutex
-        graph_mutex.acquire()
-        #TODO: check exit status?
-        for c in self._outputs:
-            c._write_done()
-        self.state = T_DONE_SUCCESS
-        graph_mutex.release()
 
 
