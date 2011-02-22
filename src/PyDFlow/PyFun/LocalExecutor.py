@@ -68,10 +68,14 @@ class WorkerThread(threading.Thread):
         self.queue.task_done()
 
 def run_one_task():
-    threading.current_thread().run_one()
+    threading.currentThread().run_one()
 
 def isWorkerThread():
-    return threading.current_thread().name == PYFUN_THREAD_NAME
+    th = threading.currentThread()
+    if getattr(th, 'name', None) is None:
+        return False
+    else:
+        return th.name == PYFUN_THREAD_NAME
 
 
 init()
