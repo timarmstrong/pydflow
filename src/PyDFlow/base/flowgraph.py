@@ -332,14 +332,14 @@ class Channel(flvar):
         """
         raise UnimplementedException("force not implemented on base Channel class")
     
-    def force(self):
+    def force(self, done_callback=None):
         """
         Ensure that at some point in the future this channel will be filled.
         I.e. if it is runnable, start it running, otherwise make sure that
         the task's inputs will be filled.
         """
         with graph_mutex: 
-            self._force()
+            self._force(done_callback)
     
     def _notify_done(self): 
         for cb in self._done_callbacks:

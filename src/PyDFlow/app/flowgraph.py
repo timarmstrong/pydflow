@@ -34,7 +34,6 @@ atexit.register(__cleanup_alltmp)
         
 
 class FileChannel(AtomicChannel):
-#TODO: delete temp files upon garbage collection.
     """
     A generic channel to handle all sorts of file data.
 

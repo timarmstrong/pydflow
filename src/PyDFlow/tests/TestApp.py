@@ -33,6 +33,8 @@ class Test(unittest.TestCase):
             return "cp @src @output_0"
         hw = localfile.bind(os.path.join(testdir, "files/helloworld"))
         x = cp(hw)
+        #TODO: for some reason this is a list.
+        print x.get()
         self.assertEquals(x.open().readlines(), ["hello world!"])
         self.assertEquals(x.open().readlines(), ["hello world!"])
     

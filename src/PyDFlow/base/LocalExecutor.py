@@ -45,7 +45,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 1
+NUM_THREADS = 4
 workers = []
 # These deques store the work remaining to be done
 work_deques = None
@@ -293,25 +293,32 @@ class WorkerThread(threading.Thread):
         #TODO: locking, I don't think we can assume exclusive access
         logging.debug("%s: looking at task frame %s " % (self.getName(), repr(taskframe)))
         task = taskframe[0]
+        graph_mutex.acquire()
         state = task._state
         if state in (T_DATA_READY, T_QUEUED):
+            graph_mutex.release()
             #  All dependencies satisfied
             self.exec_task(taskframe)
         elif state in (T_DONE_SUCCESS, T_RUNNING):
             # already started elsewhere
             return
         elif state == T_DATA_WAIT:
-            runnable_frame = self.find_runnable_task(taskframe)
-            
+            try:
+                runnable_frame = self.find_runnable_task(taskframe)
+            finally:
+                graph_mutex.release()
             if runnable_frame is not None:
                 self.exec_task(runnable_frame)
                 
         elif state == T_ERROR:
             #TODO: propagate properly
+            graph_mutex.release()
             raise Exception("Running task resulted in error")
-        elif state == T_INACTIVE:             
+        elif state == T_INACTIVE:
+            graph_mutex.release()             
             raise Exception("Tried to execute task %s with inactive state, should not be possible" % repr(task))
         else:
+            graph_mutex.release()
             raise Exception("Task %s has invalid state %d" % ((repr(task), state)))
     
     
@@ -333,93 +340,96 @@ class WorkerThread(threading.Thread):
         logging.debug("%s: find_runnable_task" % (self.getName()))
         found_runnable = False
         first_iter = True
-        with graph_mutex:
-            while not found_runnable:
-                dep_count = 0 # number of tasks that need to finish before this task can run
-                task, deps, continuation = taskframe
-                next_task = None
-                
-                # Looks at inputs that might not yet be ready
-                for i, ch in enumerate(deps):
-                    # TODO: this is assuming atomic channel
-                    # don't need to check if we just created frame while we were holding lock
-                    if ch is None:  
-                        continue
-                    elif first_iter and ch._readable():                          
-                        # is ready.. don't do anything
-                        logging.debug("%s became readable" % repr(ch))
-                        deps[i] = None
-                        continue
-                    # Next task to look at
-                    for in_t in ch._in_tasks:
-                        state = in_t._state
-                        #logging.debug("%s, %s" % (repr(ch), repr(in_t)))
-                        if state == T_INACTIVE:
-                            # We will recurse on this one
-                            if next_task is None:
-                                # do dfs on this task to run dependencies
-                                in_t._state = T_DATA_WAIT
-                                next_task = in_t
-                            dep_count += 1
-                        elif state == T_DATA_READY:
-                            # This task could be run now
-                            if next_task is None:
-                                in_t._state = T_QUEUED
-                                logging.debug("selected %s to run for thread %s" % 
-                                          (repr(in_t), self.getName()))
-                                next_task = in_t
-                                found_runnable = True
-                            dep_count += 1
-                        elif state == T_DONE_SUCCESS:
-                            pass
-                        elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED):
-                            # Will be filled with data at some point by another executor
-                            # but we do need to wait for it to finish
-                            dep_count += 1
-                        else:
-                            raise Exception("Invalid task state for %s" %
-                                            (repr(taskframe)))
-                
-                logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_task))
-                if dep_count == 0:
-                    raise Exception("Invalid task frame state %s, all inputs \
-                                    were ready but state said otherwise " %
-                                            repr(taskframe))
-                else:
-                    if next_task is not None:
-                        # need to wait for at least one thing
-                        if dep_count == 1:
-                            # Only depends on the next task we recurse on,
-                            # can just treat as continuation
-                            continuation.append(task) # previous task
-                        else:
-                            # This task depends on multiple tasks, add frame to deque  
-                            # so other tasks can be run later
-                            logging.debug("Saving task frame %s to deque"
-                                          % repr(taskframe))
-                            self.deque.append(taskframe)
-                            # fresh frame with new task
-                            continuation = []
-                        # build the frame for the next iteration 
-                        taskframe = makeframe(next_task, continuation)
+        
+        while not found_runnable:
+            dep_count = 0 # number of tasks that need to finish before this task can run
+            task, deps, continuation = taskframe
+            next_task = None
+            
+            # Looks at inputs that might not yet be ready
+            for i, ch in enumerate(deps):
+                # TODO: this is assuming atomic channel
+                # don't need to check if we just created frame while we were holding lock
+                if ch is None:  
+                    continue
+                elif first_iter and ch._readable():                          
+                    # is ready.. don't do anything
+                    logging.debug("%s became readable" % repr(ch))
+                    deps[i] = None
+                    continue
+                # Next task to look at
+                for in_t in ch._in_tasks:
+                    state = in_t._state
+                    #logging.debug("%s, %s" % (repr(ch), repr(in_t)))
+                    if state == T_INACTIVE:
+                        # We will recurse on this one
+                        if next_task is None:
+                            # do dfs on this task to run dependencies
+                            in_t._state = T_DATA_WAIT
+                            next_task = in_t
+                        dep_count += 1
+                    elif state == T_DATA_READY:
+                        # This task could be run now
+                        if next_task is None:
+                            in_t._state = T_QUEUED
+                            logging.debug("selected %s to run for thread %s" % 
+                                      (repr(in_t), self.getName()))
+                            next_task = in_t
+                            found_runnable = True
+                        dep_count += 1
+                    elif state == T_DONE_SUCCESS:
+                        pass
+                    elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED):
+                        # Will be filled with data at some point by another executor
+                        # but we do need to wait for it to finish
+                        dep_count += 1
                     else:
-                        # All dependencies already being executed, so need to suspend
-                        logging.debug("Suspending task frame %s until dependencies avail"
+                        raise Exception("Invalid task state for %s" %
+                                        (repr(taskframe)))
+            
+            logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_task))
+            if dep_count == 0:
+                raise Exception("Invalid task frame state %s, all inputs \
+                                were ready but state said otherwise " %
+                                        repr(taskframe))
+            else:
+                if next_task is not None:
+                    # need to wait for at least one thing
+                    if dep_count == 1:
+                        # Only depends on the next task we recurse on,
+                        # can just treat as continuation
+                        continuation.append(task) # previous task
+                    else:
+                        # This task depends on multiple tasks, add frame to deque  
+                        # so other tasks can be run later
+                        logging.debug("Saving task frame %s to deque"
                                       % repr(taskframe))
-                        raise Exception("BLSDF")
-                        # Make callback closure
-                        def task_resumer(channel):
-                            resume_queue.put(taskframe)
-                            
-                        for channel in taskframe[2]:
-                            if channel is not None:
-                                #TODO: assuming atomic?
-                                channel._force(done_callback=task_resumer)
-                        # exit
-                        return None
+                        self.deque.append(taskframe)
+                        # fresh frame with new task
+                        continuation = []
+                    # build the frame for the next iteration 
+                    taskframe = makeframe(next_task, continuation)
+                    
+                    # as part of making frame, task state can change
+                    if next_task._state == T_DATA_READY:
+                        found_runnable = True
+                else:
+                    # All dependencies already being executed, so need to suspend
+                    logging.debug("Suspending task frame %s until dependencies avail"
+                                  % repr(taskframe))
+                    # Make callback closure
+                    def task_resumer(channel):
+                        resume_queue.put(taskframe)
                         
-                # if found_runnable is true, fall out of loop
-                first_iter = False
+                    for channel in taskframe[2]:
+                        if channel is not None:
+                            #TODO: assuming atomic?
+                            channel._force(done_callback=task_resumer)
+                    # exit
+                    return None
+                    
+            # if found_runnable is true, fall out of loop
+            first_iter = False
         return taskframe
                     
 def isWorkerThread(thread=None):
