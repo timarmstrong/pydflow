@@ -3,7 +3,7 @@ from flowgraph import Task, Channel
 from states import *
 from PyDFlow.futures.futures import Future
 from PyDFlow.base.exceptions import *
-from flowgraph import acquire_global_mutex, release_global_mutex, graph_mutex
+from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.types.check import isRaw
 
 import threading
@@ -36,9 +36,8 @@ class AtomicTask(Task):
             if self._state == T_INACTIVE:
                 self._state = T_DATA_READY
             elif self._state == T_DATA_WAIT:
-                # Thread should be in executor's deque.  
-                # so now it is queued to run 
-                self._state = T_QUEUED
+                #TODO: valid transition?
+                self._state = T_DATA_READY
             logging.debug("%s changed state" % repr(self))
 
     def _gather_input_values(self):
@@ -66,24 +65,25 @@ class AtomicTask(Task):
         for o in self._outputs:
             o._prepare(M_WRITE)
 
-    def _force(self):
+    def _exec_async(self):
         """
         Add to work queue
         """
-        logging.debug("Force tasks %s" % repr(self))
-        if self._state in [T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT]:
+        logging.debug("_exec_async task %s" % repr(self))
+        if self._state in (T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT):
             # Already enqueued
             return
         elif self._state == T_DATA_READY:
-            self._state = T_QUEUED
+            LocalExecutor.exec_async(self)
         elif self._state == T_INACTIVE:
             self._state = T_DATA_WAIT
+            LocalExecutor.exec_async(self)
         elif self._state == T_ERROR:
             raise Exception("Forcing task which had a previous error")
         else:
             raise Exception("Invalid state %d" % self.state)
         
-        LocalExecutor.force_async(self)
+        
 
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
@@ -188,7 +188,7 @@ class AtomicChannel(Channel):
         Function to be called by input task when the data becomes available
         """
         oldstate = self._state
-        if oldstate in [CH_OPEN_W, CH_OPEN_RW]:
+        if oldstate in (CH_OPEN_W, CH_OPEN_RW):
             self._future.set(val)
             self._state = CH_DONE_FILLED
             #update the state and notify output tasks
@@ -219,14 +219,17 @@ class AtomicChannel(Channel):
         Only call when you are sure the channel has data ready for you.
         """
         if LocalExecutor.isWorkerThread():
-            if  not self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]:
-                threading.current_thread().force_recursive(self)    
-                return 
+            if  not self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
+                # This thread goes off and runs stuff recursively
+                # before blocking
+                LocalExecutor.force_recursive(self)    
         else:
             self._force()
         graph_mutex.release()
-        res = self._future.get()
-        graph_mutex.acquire()
+        try:
+            res = self._future.get()
+        finally:
+            graph_mutex.acquire()
         return res
 
     def _has_data(self):
@@ -234,9 +237,9 @@ class AtomicChannel(Channel):
 
     def _try_readable(self):
         logging.debug("_try_readable on %s" % repr(self))
-        if self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW]:
+        if self._state in (CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW):
             return True
-        elif self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
+        elif self._state in (CH_CLOSED, CH_DONE_DESTROYED):
             if self._bound is not None and self._in_tasks == []:
                 if self._has_data():
                     # Data might be there, assume that binding was correct
@@ -245,7 +248,7 @@ class AtomicChannel(Channel):
                     return True
                 else: 
                     raise Exception("Bound channel with no input tasks and no associated data")
-        elif self._state in [CH_ERROR]:
+        elif self._state in (CH_ERROR):
             #TODO: propagate error
             raise Exception("Encounter CH_ERROR")
         else:
@@ -254,13 +257,15 @@ class AtomicChannel(Channel):
 
 
     def _force(self, done_callback=None):
+        """
+        Should be called with lock held
+        Ensure that at some point in the future this channel will be filled
+        """
         logging.debug("Atomic Channel forced")
         if done_callback is not None:
             self._done_callbacks.append(done_callback)
 
-        #TODO: refactor this so that there is a separate function 
-        # which tries to open the channels and put data in it
-        if self._state in [CH_CLOSED, CH_DONE_DESTROYED]:
+        if self._state in (CH_CLOSED, CH_DONE_DESTROYED):
             if self._bound is not None and self._in_tasks == []:
                 self._try_readable()
             elif self._in_tasks != []:
@@ -268,15 +273,15 @@ class AtomicChannel(Channel):
                 # input tasks should be run first
                 self._state = CH_CLOSED_WAITING
                 for f in self._in_tasks:
-                    f._force()
+                    f._exec_async()
             else:
                 # Nowhere for data to come from
                 #TODO: exception type
                 raise Exception("forcing channel which has no input tasks or bound data")
-        elif self._state in [CH_CLOSED_WAITING, CH_OPEN_W]:
+        elif self._state in (CH_CLOSED_WAITING, CH_OPEN_W):
             # Already forced, just wait
             pass
-        elif self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED]:
+        elif self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
             # Filled: notify all, including provided callback
             self._notify_done()
         elif self._state == CH_ERROR:
@@ -296,7 +301,6 @@ class AtomicChannel(Channel):
         For atomic channels, it is readable either if it
         has been filled or it is bound.
         """
-        #TODO: lock
         return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
             or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
                 and self._bound is not None and self._in_tasks == [])

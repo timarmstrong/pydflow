@@ -35,7 +35,6 @@ def cat(first, second):
 @func((String), (Multiple(String)))
 def cat2(*args):
     return "".join(args)
-
 @func((Int), (None))
 def rec_fib(n):
     if n == 0:

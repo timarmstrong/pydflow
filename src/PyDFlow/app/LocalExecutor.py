@@ -1,3 +1,4 @@
+from __future__ import with_statement
 """
 Refactoring plan:
 
@@ -10,6 +11,8 @@ notification thread running in this process which calls continuations.
     
     
 """
+
+from PyDFlow.base.mutex import graph_mutex
 
 import subprocess
 import threading
@@ -37,10 +40,7 @@ def ensure_init():
     if not init:
         logging.debug("Initializing Local app task queue")
         active_apps = set()
-        if LIFO:
-            work_queue = Queue.LifoQueue()
-        else:
-            work_queue = Queue.Queue()
+        work_queue = Queue.Queue()
         monitor_t = MonitorThread(work_queue, active_apps)
         init = True
         monitor_t.start()
@@ -114,7 +114,6 @@ class AppQueueEntry(object):
         self.exit_code = None
 
     def run(self):
-        global graph_mutex
         task = self.task
 
         cmd_args, stdin_file, stdout_file, stderr_file = task._prepare_command()
@@ -144,7 +143,7 @@ class AppQueueEntry(object):
                            # work on windows
             )
         # Don't need just-opened file descriptors in this process now
-        for f in [stdin, stderr, stdout]:
+        for f in (stdin, stderr, stdout):
             if f is not None:
                 f.close()
         self.task.started_callback()

@@ -1,5 +1,7 @@
+from __future__ import with_statement
+
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
-from PyDFlow.base.flowgraph import graph_mutex
+from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
 import LocalExecutor as localexec
@@ -107,10 +109,8 @@ class FileChannel(AtomicChannel):
              self._cleanup_tmp()
 
     def copy(self, dest):
-        global graph_mutex
-        graph_mutex.acquire()
-        self._copy(dest)
-        graph_mutex.release()
+        with graph_mutex:
+            self._copy(dest)
 
     def _copy(self, dest):
         raise UnimplementedException("_copy was not overridden")
@@ -153,7 +153,7 @@ class LocalFileChannel(FileChannel):
         if not self._bound:
             #TODO
             raise Exception("Cannot copy unbound FileChannel %s" %(repr(self))) 
-        if self._state in [CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED]:
+        if self._state in (CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED):
             shutil.copy2(self._bound, dest)
         else:   
             #TODO
@@ -198,42 +198,44 @@ class AppTask(AtomicTask):
         # Launch the executable using backend module, attach a callback
         localexec.launch_app(self, continuation)
     
+    def isSynchronous(self):
+        return False
+    
     def _prepare_command(self):
         """
         Initializes i/o channels and collects data
         This presumes that graph_mutex is nt held prior to calling
         """
-        graph_mutex.acquire()
-        self._prep_channels()
-        # Create a dictionary of variable names to file paths
-        #TODO: what if input and output names overlap?
-        path_dict = {}
-        multi = []
-        multi_count = 0
-        multi_name = None
-        for spec, input_path in self._descriptor.zip(self._input_data):
-            if not spec.isRaw():
-                if spec.isMulti():
-                    if spec.fltype.internal.issubclassof(FileChannel):
-                        path_dict["%s_%d" % (spec.name, multi_count)] = \
-                                input_path
-                        multi.append(input_path)
-                        multi_name = spec.name
-                        multi_count += 1
-                elif spec.fltype.issubclassof(FileChannel):
-                    path_dict[spec.name] = input_path
-        if multi_name is not None:
-            path_dict[multi_name] = multi
-
-        for i, output in enumerate(self._outputs):
-            path_dict["output_%d" % i] =  output._bound
-
-        logging.debug("% s path_dict: %s" % (repr(self), repr(path_dict)))
-        
-        cmd_string = self._func(*self._input_data)
-        #TODO: function should be able to also return a dictionary
-        # no longer touching graph
-        graph_mutex.release()
+        with graph_mutex:
+            self._prep_channels()
+            # Create a dictionary of variable names to file paths
+            #TODO: what if input and output names overlap?
+            path_dict = {}
+            multi = []
+            multi_count = 0
+            multi_name = None
+            for spec, input_path in self._descriptor.zip(self._input_data):
+                if not spec.isRaw():
+                    if spec.isMulti():
+                        if spec.fltype.internal.issubclassof(FileChannel):
+                            path_dict["%s_%d" % (spec.name, multi_count)] = \
+                                    input_path
+                            multi.append(input_path)
+                            multi_name = spec.name
+                            multi_count += 1
+                    elif spec.fltype.issubclassof(FileChannel):
+                        path_dict[spec.name] = input_path
+            if multi_name is not None:
+                path_dict[multi_name] = multi
+    
+            for i, output in enumerate(self._outputs):
+                path_dict["output_%d" % i] =  output._bound
+    
+            logging.debug("% s path_dict: %s" % (repr(self), repr(path_dict)))
+            
+            cmd_string = self._func(*self._input_data)
+            #TODO: function should be able to also return a dictionary
+            # no longer touching graph
         
         # parse cmd_string, inject filenames, come up with a list of
         # arguments for the task
@@ -243,7 +245,6 @@ class AppTask(AtomicTask):
         return call_args, stdin_file, stdout_file, stderr_file
 
     def started_callback(self):
-        global graph_mutex
         # TODO: correct?
         # Don't acquire lock: the timing of this state
         # change is not critical

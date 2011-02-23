@@ -1,6 +1,6 @@
 from __future__ import with_statement
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
-from PyDFlow.base.flowgraph import graph_mutex
+from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.states import *
 from PyDFlow.futures import *
 import PyDFlow.base.LocalExecutor as LocalExecutor
@@ -32,15 +32,6 @@ class FutureChannel(AtomicChannel):
         channel now
         """
         return self._future.isSet()
-    
-    def _get(self):
-        # Make sure a worker thread doesn't block
-        #TODO
-        if (not self._state in [CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED] )\
-                and LocalExecutor.isWorkerThread():
-            self._force_by_worker()    
-        res = super(FutureChannel, self)._get()
-        return res
         
     
 
@@ -66,7 +57,7 @@ class FuncTask(AtomicTask):
                 self._prep_channels()
                 input_values = self._gather_input_values()
                 self._state = T_RUNNING
-            elif self._state in [T_RUNNING, T_DONE_SUCCESS]:
+            elif self._state in (T_RUNNING, T_DONE_SUCCESS):
                 #TODO: safe I think
                 return
             else:
@@ -87,9 +78,11 @@ class FuncTask(AtomicTask):
         except Exception, e:
             with graph_mutex:
                 self.state = T_ERROR
-                raise Exception("Locally executed task threw exception %s" % repr(e))
+                raise
+                #raise Exception("Locally executed task threw exception %s" % repr(e))
             
         with graph_mutex:
             continuation(self, return_val)
         
-        
+    def isSynchronous(self):
+        return True

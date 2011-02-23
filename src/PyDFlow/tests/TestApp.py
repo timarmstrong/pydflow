@@ -70,7 +70,6 @@ class Test(unittest.TestCase):
         import random
         import tempfile
         import os
-        ms.buildmerge()
         files = []
         
         try:

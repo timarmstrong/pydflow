@@ -1,2 +1,2 @@
-from types import flvar, Multiple
-from base.patterns import resultbag, treereduce, dynreduce
+from PyDFlow.types import flvar, Multiple
+from PyDFlow.base.patterns import resultbag, treereduce, dynreduce

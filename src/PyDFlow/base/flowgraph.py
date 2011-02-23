@@ -15,40 +15,13 @@ assume that any looks are held.
 import logging
 from PyDFlow.types import flvar
 from PyDFlow.types.check import FlTypeError  
+from PyDFlow.base.mutex import graph_mutex
 
 from states import *
 from exceptions import *
 
-from threading import Lock
 import time
 
-
-graph_mutex = Lock()
-
-def acquire_global_mutex():
-    global graph_mutex
-    graph_mutex.acquire()
-
-def release_global_mutex():
-    global graph_mutex
-    graph_mutex.release()
-
-# Keep track of how many tasks we have started without yield
-yield_counter = 0
-YIELD_INTERVAL = 50
-
-def doyield():
-    global yield_counter
-    # Give executor a chance to grab global lock
-    if yield_counter >= YIELD_INTERVAL:
-        yield_counter = 0
-        global graph_mutex
-        graph_mutex.release()
-        logging.debug("_force yielded")
-        time.sleep(0) # Activate scheduler
-        graph_mutex.acquire()
-    else:
-        yield_counter += 1
 
 
 class Task(object):
@@ -77,7 +50,8 @@ class Task(object):
             graph_mutex.release()
     
     def __repr__(self):
-        return "<PyDFlow Task %x: %s | %s | >" % (id(self), repr(self._taskname), 
+        return "<PyDFlow %s %x: %s | %s | >" % (type(self).__name__, id(self), 
+                                                repr(self._taskname), 
                                                      task_state_name[self._state])
 
 
@@ -136,17 +110,6 @@ class Task(object):
         for o in outputs:
             o._register_input(self)
 
-    def _startme(self):
-        """
-        Function which starts this task running, after inputs have become enabled
-        as appropriate
-        """
-        #TODO: notify channels, etc
-        self._state = T_QUEUED
-        logging.debug("Enqueued task %s" % repr(self))
-        #print "_exec called"
-        self._exec()
-        doyield()
 
     def _exec(self):
         """
@@ -196,32 +159,17 @@ class Task(object):
             if o is old:
                 self._outputs[i] = new
 
-    def force(self):
-        """
-        Ensure that at some point in the future this task will start running.
-        I.e. if it is runnable, start it running, otherwise make sure that
-        the task's inputs will be filled.
-        """
-        with graph_mutex: 
-            self._force()
 
-    def _force(self):
-        logging.debug("Task %s forced, state is %d" % (repr(self), self._state))
-        if self._state == T_DATA_READY:
-            # Just start it running
-            logging.debug("Task %s forced: running immediately" % repr(self))
-            self._startme()
-        elif self._state == T_INACTIVE:
-            logging.debug("Task %s forced: starting dependencies" % repr(self))
-            # Force all inputs
-            self._state = T_DATA_WAIT
-            for spec, inp in self._input_iter():
-                if not spec.isRaw():
-                    # if input is filled or already filling, method 
-                    # should do nothing
-                    inp._force() 
-        else:
-            logging.debug("Task %s forced: no action needed" % repr(self))
+
+    def _exec_async(self):
+        """
+        Guarantees that this task will be run at some point in the
+        future.
+        """
+        raise UnimplementedException("_exec_async not implemented")
+    
+    def isSynchronous(self):
+        raise UnimplementedException("isSynchronous not implemented")
     
     def state(self):
         """
@@ -255,6 +203,10 @@ class Channel(flvar):
         self._bound = _bind_location
         self._done_callbacks = []
         self._reliable = False
+  
+    def __repr__(self):
+        return "<PyDFlow %s %x %s | >" % (type(self).__name__, id(self),  
+                                                     channel_state_name[self._state])
   
     def __lshift__(self, oth):
         return self.__ilshift__(oth)
@@ -372,39 +324,36 @@ class Channel(flvar):
         """
         raise UnimplementedException("get not implemented on base Channel class")
 
-    def force(self, done_callback=None):
-        """ 
-        Forces evaluation of tasks to occur such that this channel will be filled 
-        with data eventually.
-        """
-        global graph_mutex
-        graph_mutex.acquire()
-        try:
-            self._force(done_callback=done_callback)
-        finally:
-            graph_mutex.release()
-
-
-    def _force(self):
+    def _force(self, done_callback=None):
         """
         TODO: document
         Should be overridden.  The overriding method definition should:
         check states of inputs, update own state, start any inputs running
         """
         raise UnimplementedException("force not implemented on base Channel class")
+    
+    def force(self):
+        """
+        Ensure that at some point in the future this channel will be filled.
+        I.e. if it is runnable, start it running, otherwise make sure that
+        the task's inputs will be filled.
+        """
+        with graph_mutex: 
+            self._force()
+    
     def _notify_done(self): 
         for cb in self._done_callbacks:
             cb(self)
         self._done_callbacks = []
 
+    
+
     def state(self):
         """
         Return the current state of the channel
         """
-        global graph_mutex
-        graph_mutex.acquire()
-        res = self._state
-        graph_mutex.release()
+        with graph_mutex:
+            res = self._state
         return res
 
     def readable(self):
