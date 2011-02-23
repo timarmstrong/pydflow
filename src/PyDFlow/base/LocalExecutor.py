@@ -89,15 +89,14 @@ class WorkerThread(threading.Thread):
     def __init__(self, queue, worker_num, work_deque):
         threading.Thread.__init__(self, name=("%s_%d" % (PYFUN_THREAD_NAME, worker_num)))
         self.queue = queue
+        
+        # TODO: change logic to expect lists of tasks in deque
         self.deque = work_deque
         self.worker_num = worker_num
         self.setDaemon(True) # Ensure threads will exit with application
         self.last_steal = worker_num
         self.idle = False
         self.continuation = None
-        
-    def add_deque(self, task):
-        self.deque.append(task)
     
     def run(self, recursive=False):
         logging.debug("Thread %s starting up" % self.name)
@@ -146,6 +145,7 @@ class WorkerThread(threading.Thread):
         """
         Start the task running
         """
+        #TODO: dispatch to executor?
         logging.debug("%s starting task" % self.name())
         synchronous = True
         if synchronous:
