@@ -67,7 +67,8 @@ def force_async(task):
     initFuture.get()
     logging.debug("Added task to work queue")
     in_queue.put(task)
-    idle_worker_cvar.notifyAll()
+    with idle_worker_cvar:
+        idle_worker_cvar.notifyAll()
 
 ReturnMarker = object()
 
@@ -186,6 +187,7 @@ class WorkerThread(threading.Thread):
         The threads keep on polling until there is a consensus
         that there is no work.
         """
+        global idle_worker_count, idle_worker_cvar
         with idle_worker_cvar:
             if not self.idle:
                 self.idle = True
@@ -244,7 +246,7 @@ class WorkerThread(threading.Thread):
         
         # Check whether any tasks were added to the stack:
         # should only add one to permit workstealing
-        logging.debug("%s: looking at task frame %s " % (self.name(), repr(taskframe)))
+        logging.debug("%s: looking at task frame %s " % (self.name, repr(taskframe)))
         state = task.state()
         if state in [T_DATA_READY, T_QUEUED]:
             #  All dependencies satisfied
@@ -367,9 +369,9 @@ class WorkerThread(threading.Thread):
                             raise Exception("Invalid task state for %s" %
                                             (repr(taskframe)))
                 if dep_count == 0:
-                    raise Exception("Invalid task frame state %s with state %d, all inputs \
+                    raise Exception("Invalid task frame state %s, all inputs \
                                     were ready but state said otherwise " %
-                                            (repr(taskframe)))
+                                            repr(taskframe))
                 elif dep_count == 1:
                     continuation_stack.append(next_taskframe)
                 else:
@@ -430,6 +432,6 @@ class DoneContinuation:
 
 def resume_continuation(cont):
     """
-    TODO: addto queue
+    TODO: add to queue
     """
     pass
