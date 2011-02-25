@@ -44,7 +44,7 @@ class Test(unittest.TestCase):
         """
         import itertools
         str = ["aaa", "bb", "c", "dd", "e", "fff"]
-        bound = map(String.bind, str)
+        bound = map(String, str)
         exp = ''.join(str)
         
         
@@ -63,7 +63,7 @@ class Test(unittest.TestCase):
         def add(a, b):
             return a + b
         sums = [c.get() 
-                for c in list(scanl(add, Int(0), imap(Int.bind, xrange(1,COUNT))))]
+                for c in list(scanl(add, Int(0), imap(Int, xrange(1,COUNT))))]
         print sums
         sum = 0
         print "sums", sums

@@ -136,7 +136,7 @@ class TestPyFun(unittest.TestCase):
         
     def testMergeSort(self):
         import random
-        LEN = 1000
+        LEN = 15
         xs = [random.randint(0, 10000) for i in range(LEN)]
         sorted = ex.merge_sort(xs).get()
         self.assertEqual(len(sorted), LEN)

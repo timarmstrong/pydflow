@@ -158,7 +158,11 @@ class AppQueueEntry(object):
         if self.process is None:
             raise Exception("Process has not yet been run, can't callback")
         with graph_mutex:
-            self.continuation(self.task, [ch._bound for ch in self.task._outputs])
+            if len(self.task._outputs) == 1:
+                retval = self.task._outputs[0]._bound
+            else: 
+                retval = [ch._bound for ch in self.task._outputs]
+            self.continuation(self.task, retval)
 
 
 def launch_app(task, continuation):

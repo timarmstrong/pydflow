@@ -45,7 +45,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 4
+NUM_THREADS = 1
 workers = []
 # These deques store the work remaining to be done
 work_deques = None

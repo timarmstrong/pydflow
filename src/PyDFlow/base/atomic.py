@@ -48,7 +48,6 @@ class AtomicTask(Task):
         directly accessing them.
         """
         input_data = []
-        inputs = self._inputs
         for spec, inp in self._input_iter():
             if spec.isRaw():
                 input_data.append(inp)

@@ -19,7 +19,7 @@ def genlist():
     nums = [random.randint(0,100) for i in range(1000)]
     #nums = [1,2,4,8]
 
-    return nums, map(Int.bind, nums)
+    return nums, map(Int, nums)
 
 
 if __name__ == "__main__":

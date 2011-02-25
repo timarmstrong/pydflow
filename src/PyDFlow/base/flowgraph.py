@@ -9,7 +9,7 @@ for internal use only and may reqire a lock to be held when calling.  A method
 prefixed with _ may be intended to be overridden
 
 A method or field without such a prefix is intended for external use, and will not
-assume that any looks are held.
+assume that any locks are held.
 """
 
 import logging

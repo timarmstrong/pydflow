@@ -66,7 +66,7 @@ class Test(unittest.TestCase):
         
     def testRedir(self):
         pass
-    
+    '''
     def testMergeSort(self):
         import PyDFlow.examples.mergesort.mergesort as ms
         import random
@@ -86,7 +86,7 @@ class Test(unittest.TestCase):
                     filehandle.write("%d\n" % random.randint(1, 1000))                     
                 filehandle.close()
             
-            flfiles = map(ms.intfile.bind, files)
+            flfiles = map(ms.intfile, files)
             sorted = ms.merge_sort(flfiles)
             results = [int(x) for x in sorted.open().readlines()]
             self.assertEquals(len(results), NUM_FILES*NO_PER_FILE)
@@ -96,7 +96,7 @@ class Test(unittest.TestCase):
         finally:
             for f in files:
                 os.remove(f)    
-        
+    '''   
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
