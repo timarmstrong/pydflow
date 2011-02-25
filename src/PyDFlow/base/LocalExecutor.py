@@ -419,9 +419,9 @@ class WorkerThread(threading.Thread):
                                   % repr(taskframe))
                     # Make callback closure
                     def task_resumer(channel):
-                        resume_queue.put(taskframe)
+                        resume_taskframe(taskframe)
                         
-                    for channel in taskframe[2]:
+                    for channel in taskframe[1]:
                         if channel is not None:
                             #TODO: assuming atomic?
                             channel._force(done_callback=task_resumer)
@@ -482,17 +482,12 @@ def force_recursive(channel):
 
 
 class DoneContinuation:
-    def __init__(self, contstack=None, thread=None):
+    def __init__(self, contstack=None):
         if contstack is None or len(contstack) == 0:
             self.contstack = None
         else:
             self.contstack = contstack
         
-        # If thread is provided, we will hand the continuation directly to
-        # the thread.  This makes most sense when the task was synchronous
-        # as we will not do anything funny with the thread
-        # Otherwise we will put the continuation into a global resume queue 
-        self.thread = thread
         
     def __call__(self, task, return_val):
         """
@@ -525,14 +520,19 @@ class DoneContinuation:
             for val, chan in zip(return_vals, task._outputs) :
                 chan._set(val)
         if self.contstack is None:
-            if self.thread is not None:
-                #send to specific thread
-                self.thread.resume_continuation(self.contstack)
-            else:
-                resume_continuation(self.contstack)
+            resume_continuation(self.contstack)
 
 def resume_continuation(cont):
     """
     TODO: add to queue
     """
-    pass
+    if cont is not None and len(cont) > 0:
+        with idle_worker_cvar:
+            resume_queue.put((cont[0], None, cont[1:]))
+            idle_worker_cvar.notifyAll()
+            
+def resume_taskframe(taskframe):
+    with idle_worker_cvar:
+        resume_queue.put(taskframe)
+        idle_worker_cvar.notifyAll()
+            

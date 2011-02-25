@@ -63,10 +63,18 @@ class Test(unittest.TestCase):
         
         self.assertFalse(os.path.exists("here"), "bound file should have been deleted")
         self.assertFalse(os.path.exists(xpath))
-        
+    
+    def testTwoArg(self):
+        @app((localfile), (localfile, localfile))
+        def sort(f1, f2):
+            return "sort @f1 @f2 -o @output_0"
+        hw1 = localfile(os.path.join(testdir, "files/helloworld"))
+        hw2 = localfile(os.path.join(testdir, "files/helloworld"))
+        sort(hw1, hw2).get()
+    
     def testRedir(self):
         pass
-    '''
+    
     def testMergeSort(self):
         import PyDFlow.examples.mergesort.mergesort as ms
         import random
@@ -92,11 +100,11 @@ class Test(unittest.TestCase):
             self.assertEquals(len(results), NUM_FILES*NO_PER_FILE)
             for i in xrange(len(results) - 1):
                 self.assertTrue(results[i] <= results[i+1])
-            
+            #NOTE TO SELF: THIS IS FAILING TO CORRECTLY RESUME TASKSs
         finally:
             for f in files:
                 os.remove(f)    
-    '''   
+       
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
