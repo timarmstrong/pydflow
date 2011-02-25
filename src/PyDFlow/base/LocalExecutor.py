@@ -145,13 +145,13 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to resume" % self.getName())
             # Try to get a frame from the resume queue
-            if self.run_from_queue(self.resume_queue, False, None):
+            if self.run_from_queue(self.resume_queue, False, None, frame=True):
                 logging.debug("%s ran from resume" % self.getName())
                 continue
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            if self.run_from_queue(self.in_queue, True, QUEUE_TIMEOUT * random.random()):
+            if self.run_from_queue(self.in_queue, True, QUEUE_TIMEOUT * random.random(),frame=False):
                 logging.debug("%s ran from new work queue" % self.getName())
                 continue 
             
@@ -163,10 +163,10 @@ class WorkerThread(threading.Thread):
             
             # If there was no work, see if we can establish consensus 
             # among threads that there is no work to do
-            logging.debug("%s trying to go idle, found no work" % self.getName())
-            taskframe = self.try_idle()
-            if taskframe is not None:
-                self.eval_taskframe(taskframe)
+            #logging.debug("%s trying to go idle, found no work" % self.getName())
+            #taskframe = self.try_idle()
+            #if taskframe is not None:
+            #    self.eval_taskframe(taskframe)
             
     def exec_task(self, taskframe):
         """
@@ -201,19 +201,23 @@ class WorkerThread(threading.Thread):
             return False
         
     
-    def run_from_queue(self, queue, block, timeout):
+    def run_from_queue(self, queue, block, timeout, frame):
         """
         Trys to get some new work from the queue provided
         Returns True if found, false otherwise
         """
         try:
-            task = queue.get(block, timeout)
+            item = queue.get(block, timeout)
             
             queue.task_done()
-            with graph_mutex:
-                # Build the taskframe: the task and all of its unresolved
-                # dependencies
-                taskframe = makeframe(task, [])
+            if frame:
+                taskframe = item
+            else:
+                with graph_mutex:
+                    # Build the taskframe: the task and all of its unresolved
+                    # dependencies
+                    taskframe = makeframe(item, [])
+            
             logging.debug("Got %s from queue" % repr(taskframe))
             self.eval_taskframe(taskframe)
             return True
@@ -238,17 +242,22 @@ class WorkerThread(threading.Thread):
                 # something from queue, if there is
                 # genuinely nothing there, block on
                 # condition
+                task = None
                 try:
-                    
-                    task = self.in_queue.get(False)
-                    # got a task: wake up all
+                    task = self.resume_queue.get(False)
+                except Queue.Empty:
+                    pass
+                if task is None:
+                    try:
+                        task = self.in_queue.get(False)
+                    except Queue.Empty:
+                        pass
+                # got a task: wake up all
+                if task is not None:
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
                     return makeframe(task, [])
-                except Queue.Empty:
-                    pass
-                
                 idle_worker_cvar.wait()
         self.idle = False
         return None
@@ -419,6 +428,14 @@ class WorkerThread(threading.Thread):
                                   % repr(taskframe))
                     # Make callback closure
                     def task_resumer(channel):
+                        # Se
+                        try:
+                            ch_index = taskframe[1].index(channel)
+                            taskframe[1][ch_index] = None
+                        except ValueError:
+                            pass
+                        
+                        logging.debug("task resumer resuming taskframe:%s" % (repr(taskframe)))
                         resume_taskframe(taskframe)
                         
                     for channel in taskframe[1]:
