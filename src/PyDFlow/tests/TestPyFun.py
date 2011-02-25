@@ -62,7 +62,7 @@ class TestPyFun(unittest.TestCase):
 
 
     def testGet1(self):
-        x = Int.bind(42)
+        x = Int(42)
         self.assertEquals(x.get(), 42)
         self.assertEquals(x.get(), 42)
         self.assertEquals(x.get(), 42)
@@ -86,19 +86,19 @@ class TestPyFun(unittest.TestCase):
     
     def testOneArg(self):
         x = Int()
-        y = Int.bind(2)
+        y = Int(2)
         self.assertEqual((x << inc(y)).get(), 3)
         
     def testTwoArg(self):
-        self.assertEqual(cat(String.bind("cow"), String.bind("moo")).get(), "cowmoo")
+        self.assertEqual(cat(String("cow"), String("moo")).get(), "cowmoo")
         
     def testInputTypes(self):
-        x = Int.bind(2)
-        y = String.bind("sddf")
+        x = Int(2)
+        y = String("sddf")
         self.assertRaises(FlTypeError, cat, x, y)
         
         String2 = String.subtype()
-        z = String2.bind("sddf")
+        z = String2("sddf")
         # Check subclass passes test
         cat(y, z).get()
         
@@ -118,17 +118,17 @@ class TestPyFun(unittest.TestCase):
         self.assertRaises(FlTypeError, lambda : i << one())
         
     def testTypesMulti(self):
-        self.assertRaises(FlTypeError, cat2, String.bind("sdf"), Int.bind("sdf"))
+        self.assertRaises(FlTypeError, cat2, String("sdf"), Int("sdf"))
         
     def testMultiArg(self):
         args = ["cow", "goes", "moo"]
-        res = cat2(*[String.bind(a) for a in args])
+        res = cat2(*[String(a) for a in args])
         self.assertEquals(res.get(), "cowgoesmoo")
         
         
     def testType(self):
         MagicInt = Int.subtype()
-        self.assertTrue(future.isinstance(MagicInt.bind("hello")))
+        self.assertTrue(future.isinstance(MagicInt("hello")))
 
     def testFib(self):
         self.assertEquals(ex.fib(3).get(),2)

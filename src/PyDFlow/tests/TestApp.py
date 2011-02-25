@@ -31,7 +31,7 @@ class Test(unittest.TestCase):
         @app((localfile), (localfile))
         def cp(src):
             return "cp @src @output_0"
-        hw = localfile.bind(os.path.join(testdir, "files/helloworld"))
+        hw = localfile(os.path.join(testdir, "files/helloworld"))
         x = cp(hw)
         #TODO: for some reason this is a list.
         print x.get()
@@ -51,7 +51,7 @@ class Test(unittest.TestCase):
         
         
         # write to a bound file
-        y = localfile.bind("here")
+        y = localfile("here")
         y <<= write("sometext")
         self.assertEquals(y.open().readlines(), ['sometext\n'])
         ypath = y.get()

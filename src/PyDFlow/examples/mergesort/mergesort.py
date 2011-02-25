@@ -31,8 +31,8 @@ def compile(src):
     return "gcc -o @output_0 @src"
 
 def do_compile():
-    bin = localfile.bind(os.path.join(srcdir, "merge")) <<  \
-        compile(localfile.bind(os.path.join(srcdir, "merge.c")))
+    bin = localfile(os.path.join(srcdir, "merge")) <<  \
+        compile(localfile(os.path.join(srcdir, "merge.c")))
     bin.get()
 
 
@@ -71,8 +71,8 @@ def main():
         print "USAGE: mergesort.py <files of integers>"
         return
     start_t = datetime.datetime.now()
-    output = sorted_intfile.bind("mergesorted.txt")
-    output <<= merge_sort([intfile.bind(f) for f in filenames])
+    output = sorted_intfile("mergesorted.txt")
+    output <<= merge_sort([intfile(f) for f in filenames])
 
     # Need to call get() to initiate the sorting
     graph_built_t = datetime.datetime.now()

@@ -51,7 +51,7 @@ class Test(unittest.TestCase):
         @func((String),(String, String))
         def concat(a, b):
             return a + b
-        foldres = foldl(concat, String.bind(""), bound).get()
+        foldres = foldl(concat, String(""), bound).get()
         
         treeres = treereduce(concat, bound).get()
         self.assertEquals(exp, foldres)
@@ -63,7 +63,7 @@ class Test(unittest.TestCase):
         def add(a, b):
             return a + b
         sums = [c.get() 
-                for c in list(scanl(add, Int.bind(0), imap(Int.bind, xrange(1,COUNT))))]
+                for c in list(scanl(add, Int(0), imap(Int.bind, xrange(1,COUNT))))]
         print sums
         sum = 0
         print "sums", sums

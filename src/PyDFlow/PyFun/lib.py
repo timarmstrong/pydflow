@@ -6,7 +6,7 @@ from functools import wraps
 def rlift(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        return (future.bind(r) for r in f(*args, **kwargs))
+        return (future(r) for r in f(*args, **kwargs))
 
 
 genrandom = rlift(base.genrandom)

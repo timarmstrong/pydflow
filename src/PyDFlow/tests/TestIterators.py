@@ -36,8 +36,8 @@ class Test(unittest.TestCase):
         
     def testResultList(self):
         COUNT = 10
-        res1 = (future.bind(i) for i in range(COUNT))
-        res1b = (future.bind(i) for i in range(COUNT))
+        res1 = (future(i) for i in range(COUNT))
+        res1b = (future(i) for i in range(COUNT))
         
         res2 = (inc(i - 1) for i in range(COUNT))
         res2b = (inc(i - 1) for i in range(COUNT))
@@ -52,7 +52,7 @@ class Test(unittest.TestCase):
         
     def testResultBag(self):
         COUNT = 10
-        res1 = (future.bind(i) for i in range(COUNT))
+        res1 = (future(i) for i in range(COUNT))
         res2 = (inc(i - 1) for i in range(COUNT))
         res2b = (inc(i - 1) for i in range(COUNT))
 

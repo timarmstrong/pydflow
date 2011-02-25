@@ -191,7 +191,7 @@ class Channel(flvar):
     This class is an abstract base class for all other channels to derive 
     from
     """
-    def __init__(self, _bind_location=None):
+    def __init__(self, bound=None):
         """
         bound_to is a location that the data will come from
         or will be written to.
@@ -200,7 +200,7 @@ class Channel(flvar):
         self._in_tasks = []
         self._out_tasks = []
         self._state = CH_CLOSED
-        self._bound = _bind_location
+        self._bound = bound
         self._done_callbacks = []
         self._reliable = False
   
@@ -365,13 +365,6 @@ class Channel(flvar):
         """
         raise UnimplementedException("readable is not implemented")
 
-    @classmethod
-    def bind(cls, location):
-        """
-        Creates a new instance of the class, bound to some underlying data
-        object or location.
-        """
-        return cls(_bind_location=location)
     
     def set_state(self, state):
         with graph_mutex:

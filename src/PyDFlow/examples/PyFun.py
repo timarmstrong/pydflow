@@ -34,10 +34,10 @@ def maxi(*args):
     return max(args)
 
 def fib(n):
-    f1 = Int.bind(0) # fib(0)
+    f1 = Int(0) # fib(0)
     if n == 0:
         return f1
-    f2 = Int.bind(1)  # fib(1)
+    f2 = Int(1)  # fib(1)
     if n == 1:
         return f2
     for i in range(n - 1):
@@ -73,7 +73,7 @@ def merge_sort(xs):
     start_t = datetime.datetime.now()
     # list of lists - 
     # each of this individual lists is sorted (as it only has one element)
-    lol = [sorted_array.bind([x])
+    lol = [sorted_array([x])
                 for x in xs]
     while len(lol) > 1:
         odds = lol[::2]
@@ -101,7 +101,7 @@ def main():
     print "a = 1; a + a = %d" % add(a,a).get()
     print "1 + 1 = %d" % add(one(), one()).get()
     print "1 + (1 + 1) = %d" % add(one(), add(one(), one())).get()
-    print "1 + 2 = %d" % add(Int.bind(1), Int.bind(2)).get()
+    print "1 + 2 = %d" % add(Int(1), Int(2)).get()
     
     for n in range(10):
         print "Fib(%d) = %d" % (n, fib(n).get())
@@ -114,7 +114,7 @@ def main():
     print "x = %d" % x.get()
 
 
-    print "maxi(4,2,6) = %d" % maxi(Int.bind(4), Int.bind(2), Int.bind(6)).get()
+    print "maxi(4,2,6) = %d" % maxi(Int(4), Int(2), Int(6)).get()
 
     print "Done."
 

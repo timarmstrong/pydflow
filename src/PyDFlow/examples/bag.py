@@ -18,7 +18,7 @@ def rand_dur(x):
     time.sleep(dur)
     return x
 
-inp = [Int.bind(i) for i in range(20)]
+inp = [Int(i) for i in range(20)]
 
 out = map(rand_dur, inp)
 
@@ -38,7 +38,7 @@ use_rbag(b)
 print "Testing result collection with ready channels"
 use_rbag(b) # check that it works ok with already finished tasks
 
-inp2 = [Int.bind(i) for i in range(20)]
+inp2 = [Int(i) for i in range(20)]
 
 out2 = map(rand_dur, inp)
 

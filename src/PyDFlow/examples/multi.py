@@ -7,8 +7,8 @@ def sort(*infiles):
 
 import sys
 
-x = localfile.bind("this.txt")
-x <<= sort(*[localfile.bind(arg) for arg in sys.argv[1:]])
+x = localfile("this.txt")
+x <<= sort(*[localfile(arg) for arg in sys.argv[1:]])
 
 x.get()
 
