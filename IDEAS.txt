@@ -1,3 +1,4 @@
+* optionally remove type checking
 
 * App procedures: local and remote files
 * CUDA

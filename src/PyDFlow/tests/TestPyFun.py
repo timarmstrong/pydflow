@@ -17,7 +17,7 @@ import PyDFlow.examples.PyFun as ex
 
 Int = future.subtype()
 String = future.subtype()
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 @func((Int), ())
@@ -159,20 +159,24 @@ class TestPyFun(unittest.TestCase):
         See if recursion works for small number of processes
         """
         self.assertEquals(rec_fib(2).get(), 1)
-        
+    
     
     def testZZRecurse2(self):
         """
         See if recursion fails for large number of processes.
         Have this as last test as it ties up lots of threads
         """
-        # check that 
-        res = rec_fib(49)
+         
+        res = rec_fib(15)
         from PyDFlow.futures import Future
         resslot = Future()
-        def waiter():
-            resslot.set(res.get())
-        t = th.Thread(target=waiter)
+        def waiter(resslot):
+            print "waiter running"
+            f = res.get()
+            print "waiter got %d" % f 
+            resslot.set(f)
+            print "waiter done %s" % repr(resslot)
+        t = th.Thread(target=waiter, args=(resslot,))
         t.start()
         
         
@@ -180,11 +184,15 @@ class TestPyFun(unittest.TestCase):
         print "waiting for fibonacci result"
         for i in range(10):
         #while True:
+            print resslot
             if resslot.isSet():
-                self.assertEquals(resslot.get(), 7778742049)
+                self.assertEquals(resslot.get(), 610)
+                return
             print ".",
             time.sleep(1)
+        print(resslot.get())
         self.fail("Ran out of time waiting for recursive fibonacci calc")
+        
         
     
 if __name__ == "__main__":

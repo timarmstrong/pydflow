@@ -5,7 +5,7 @@ from PyDFlow import *
 import logging
 import random
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 Int = future.subtype()
 
