@@ -254,9 +254,8 @@ class AtomicChannel(Channel):
                     return True
                 else: 
                     raise Exception("Bound channel with no input tasks and no associated data")
-        elif self._state in (CH_ERROR):
-            #TODO: propagate error
-            raise Exception("Encounter CH_ERROR")
+        elif self._state in (CH_ERROR,):
+            return False
         else:
             return False
                     

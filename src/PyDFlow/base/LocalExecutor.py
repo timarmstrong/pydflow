@@ -104,7 +104,7 @@ def makeframe(task, continuation):
     for spec, ch in task._input_iter():
         if not spec.isRaw() and not ch._try_readable():
             if ch._state == CH_ERROR:
-                fail_task(task, continuation, [ch._exception])
+                fail_task(task, continuation, ch._exceptions)
                 return None
             deps.append(ch)
     return (task, deps, continuation)
@@ -351,9 +351,9 @@ class WorkerThread(threading.Thread):
                 self.exec_task(runnable_frame)
                 
         elif state == T_ERROR:
-            #TODO: propagate properly
+            # Exception should already be propagated, just return
             graph_mutex.release()
-            raise Exception("Running task resulted in error")
+            return
         elif state == T_INACTIVE:
             graph_mutex.release()             
             raise Exception("Tried to execute task %s with inactive state, should not be possible" % repr(task))
@@ -394,6 +394,7 @@ class WorkerThread(threading.Thread):
                     continue
                 elif ch._state == CH_ERROR:
                     fail_task(task, continuation, ch._exceptions)
+                    continue
                 elif first_iter and ch._readable():                          
                     # is ready.. don't do anything
                     logging.debug("%s became readable" % repr(ch))

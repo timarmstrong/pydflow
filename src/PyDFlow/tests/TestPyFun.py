@@ -187,11 +187,11 @@ class TestPyFun(unittest.TestCase):
         """
         self.assertEquals(silly_add(Int(50), Int(20)).get(), 70)
         
-    def testZZRecurse2Fail(self):
+    def testRecurse2Fail(self):
         """
         Check that max recursion depth failure passed up  ok.
         """
-        self.assertRaises(RuntimeError, silly_add(Int(100000), Int(20)).get())
+        self.assertRaises(RuntimeError, silly_add(Int(100000), Int(20)).get)
     
     def testRecurse3(self):
         """
@@ -224,20 +224,31 @@ class TestPyFun(unittest.TestCase):
         print(resslot.get())
         self.fail("Ran out of time waiting for recursive fibonacci calc")
         
-    def testZSimpleException(self):
+    def testSimpleException(self):
         fut = cause_exception()
-        #fut.get()
         self.assertRaises(MyException, fut.get)
-        
+    
+    def testSimpleException2(self):
+        fut = inc(cause_exception())
+        self.assertRaises(MyException, fut.get)
+    
+    def testSimpleException3(self):
+        fut = add(cause_exception(), cause_exception())
+        self.assertRaises(MyException, fut.get)
+    
+    def testZSimpleException4(self):
+        fut = add(one(), cause_exception())
+        self.assertRaises(MyException, fut.get)
+      
     def testZZComplexException(self):
         res = add(add(
                     inc(one()), 
                     inc(cause_exception())), one())
-        self.assertRaises(MyException, res.get())
+        self.assertRaises(MyException, res.get)
         res2 = inc(res)
-        self.assertRaises(MyException, res2.get())
+        self.assertRaises(MyException, res2.get)
         res3 = add(res2, res)
-        self.assertRaises(MyException, res3.get())
+        self.assertRaises(MyException, res3.get)
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
