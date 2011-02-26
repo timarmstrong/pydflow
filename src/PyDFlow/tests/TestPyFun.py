@@ -17,7 +17,7 @@ import PyDFlow.examples.PyFun as ex
 
 Int = future.subtype()
 String = future.subtype()
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 
 @func((Int), ())
@@ -27,6 +27,10 @@ def one():
 @func((Int), (Int))
 def inc(x):
     return x + 1
+
+@func((Int), (Int, Int))
+def add(x, y):
+    return x + y
 
 @func((String), (String, String))
 def cat(first, second):
@@ -48,7 +52,22 @@ def rec_fib(n):
         res = rec_fib(n-1).get() + rec_fib(n-2).get()
         print "got: rec_fib(%d) = %d" % (n, res)
         return res
-        
+
+@func((Int), (Int, Int))
+def silly_add(x, y):
+    if x == 0:
+        return y
+    elif x < 0:
+        return silly_add(Int(x + 1), Int(y - 1)).get()
+    else:
+        return silly_add(Int(x - 1), Int(y + 1)).get()
+    
+class MyException(Exception):
+    pass
+@func((Int), ())
+def cause_exception():
+    raise MyException()
+
 class TestPyFun(unittest.TestCase):
 
 
@@ -160,13 +179,25 @@ class TestPyFun(unittest.TestCase):
         """
         self.assertEquals(rec_fib(2).get(), 1)
     
+    def testRecurse2(self):
+        """
+        Recurse to a largish depth.
+        Not that we risk hitting max recursion depth in python if we
+        go too far.
+        """
+        self.assertEquals(silly_add(Int(50), Int(20)).get(), 70)
+        
+    def testZZRecurse2Fail(self):
+        """
+        Check that max recursion depth failure passed up  ok.
+        """
+        self.assertRaises(RuntimeError, silly_add(Int(100000), Int(20)).get())
     
-    def testZZRecurse2(self):
+    def testRecurse3(self):
         """
         See if recursion fails for large number of processes.
         Have this as last test as it ties up lots of threads
         """
-         
         res = rec_fib(15)
         from PyDFlow.futures import Future
         resslot = Future()
@@ -193,8 +224,21 @@ class TestPyFun(unittest.TestCase):
         print(resslot.get())
         self.fail("Ran out of time waiting for recursive fibonacci calc")
         
+    def testZSimpleException(self):
+        fut = cause_exception()
+        #fut.get()
+        self.assertRaises(MyException, fut.get)
         
-    
+    def testZZComplexException(self):
+        res = add(add(
+                    inc(one()), 
+                    inc(cause_exception())), one())
+        self.assertRaises(MyException, res.get())
+        res2 = inc(res)
+        self.assertRaises(MyException, res2.get())
+        res3 = add(res2, res)
+        self.assertRaises(MyException, res3.get())
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

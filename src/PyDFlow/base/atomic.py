@@ -229,8 +229,15 @@ class AtomicChannel(Channel):
             res = self._future.get()
         finally:
             graph_mutex.acquire()
+        if res is None and self._state == CH_ERROR:
+            #TODO compound exception?
+            raise self._exceptions[0] # first exception
         return res
 
+    def _error(self, *args, **kwargs):
+        self._future.set(None)
+        super(AtomicChannel, self)._error(*args, **kwargs)
+        
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")
 
@@ -284,8 +291,8 @@ class AtomicChannel(Channel):
             # Filled: notify all, including provided callback
             self._notify_done()
         elif self._state == CH_ERROR:
-            #TODO: reraise exception
-            # retry?
+            # It is upto get to check.
+            self._notify_done()
             raise Exception("Previous error: ")
         else:
             #TODO: exception type

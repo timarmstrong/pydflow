@@ -48,6 +48,9 @@ class Task(object):
             self.__setup_outputs(**kwargs)
         finally:
             graph_mutex.release()
+        
+        # NOTE: self._exception will used to be store
+        #    exception in case of an error
     
     def __repr__(self):
         return "<PyDFlow %s %x: %s | %s | >" % (type(self).__name__, id(self), 
@@ -118,13 +121,13 @@ class Task(object):
         """
         raise UnimplementedException("_exec is not implemented") 
 
-    def _input_fail(self, input):
+    def _fail(self, exceptions):
         """
-        Can be overridden. Called only when there is some bad failure in hte
-        input channel, in order to allow error states to propagate.
+        The task failed with some exception
         """
         self._state = T_ERROR
-        #TODO: send error to output channels
+        for ch in self._outputs:
+            ch._fail(exceptions)
     
     def _input_readable(self, input, oldstate, newstate):
         """
@@ -203,6 +206,8 @@ class Channel(flvar):
         self._bound = bound
         self._done_callbacks = []
         self._reliable = False
+        # NOTE: self._exception will used to be store
+        #    exceptions in case of an error
   
     def __repr__(self):
         return "<PyDFlow %s %x %s | >" % (type(self).__name__, id(self),  
@@ -346,8 +351,18 @@ class Channel(flvar):
             cb(self)
         self._done_callbacks = []
 
-    
-
+    def _fail(self, exceptions):
+        logging.debug("%s failed with exceptions %s" % (repr(self), 
+                                                        repr(exceptions)))
+        if self._state == CH_ERROR:
+            self._exceptions.extend(exceptions)
+        else:
+            self._state = CH_ERROR
+            self._exceptions = exceptions
+            # Should not be possible to call if future already set
+            self._future.set(None)
+            self._notify_done()
+        
     def state(self):
         """
         Return the current state of the channel

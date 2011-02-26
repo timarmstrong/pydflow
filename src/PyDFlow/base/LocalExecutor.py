@@ -90,14 +90,24 @@ ReturnMarker = object()
 
 PYFUN_THREAD_NAME = "pyfun_thread"
 
+def fail_task(task, continuation, exceptions):
+    task._fail(exceptions)
+    if continuation is not None:
+        for t in continuation:
+            t._fail(exceptions)
+
 def makeframe(task, continuation):
     """
     Make a task frame from a task. Graph mutex should be held.
     """
-    return (task, 
-            [ch for spec, ch in task._input_iter() 
-             if not spec.isRaw() and not ch._try_readable()],
-            continuation)
+    deps = []
+    for spec, ch in task._input_iter():
+        if not spec.isRaw() and not ch._try_readable():
+            if ch._state == CH_ERROR:
+                fail_task(task, continuation, [ch._exception])
+                return None
+            deps.append(ch)
+    return (task, deps, continuation)
 
 class WorkerThread(threading.Thread):
     """ 
@@ -164,9 +174,9 @@ class WorkerThread(threading.Thread):
             # If there was no work, see if we can establish consensus 
             # among threads that there is no work to do
             #logging.debug("%s trying to go idle, found no work" % self.getName())
-            #taskframe = self.try_idle()
-            #if taskframe is not None:
-            #    self.eval_taskframe(taskframe)
+            taskframe = self.try_idle()
+            if taskframe is not None:
+                self.eval_taskframe(taskframe)
             
     def exec_task(self, taskframe):
         """
@@ -179,15 +189,33 @@ class WorkerThread(threading.Thread):
         logging.debug("%s starting task" % self.getName())
                     
         task.set_state(T_QUEUED)
+        #TODO: what if continuation called before exception
         if task.isSynchronous():
             callback = DoneContinuation()
-            task._exec(callback)
+            
+            try:
+                task._exec(callback)
+            except Exception, e:
+                logging.error("%s caught exception %s" % (self.getName(), 
+                                            repr(e)))
+                fail_task(task, contstack, [e])
+                return
+            error = None
             if contstack is not None:
                 for nexttask in reversed(contstack):
-                    nexttask.set_state(T_QUEUED)
-                    nexttask._exec(callback)
+                    if error is None:
+                        nexttask.set_state(T_QUEUED)
+                        try:
+                            nexttask._exec(callback)
+                        except Exception, e:
+                            error = e
+                    if error is not None:
+                        fail_task(nexttask, [], [error])
         else:
-            task._exec(DoneContinuation(contstack))
+            try:
+                task._exec(DoneContinuation(contstack))
+            except Exception, e:
+                fail_task(task, contstack, [e])
             
     def run_from_deque(self):
         try:
@@ -219,7 +247,10 @@ class WorkerThread(threading.Thread):
                     taskframe = makeframe(item, [])
             
             logging.debug("Got %s from queue" % repr(taskframe))
-            self.eval_taskframe(taskframe)
+            if taskframe is not None:
+                self.eval_taskframe(taskframe)
+            # If there was an error processing an input, just return
+            # to let error propagate 
             return True
         except Queue.Empty:
             logging.debug("Thread %s queue timeout" % (self.getName()))
@@ -361,6 +392,8 @@ class WorkerThread(threading.Thread):
                 # don't need to check if we just created frame while we were holding lock
                 if ch is None:  
                     continue
+                elif ch._state == CH_ERROR:
+                    fail_task(task, continuation, ch._exceptions)
                 elif first_iter and ch._readable():                          
                     # is ready.. don't do anything
                     logging.debug("%s became readable" % repr(ch))
