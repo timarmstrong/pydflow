@@ -273,22 +273,23 @@ class WorkerThread(threading.Thread):
                 # something from queue, if there is
                 # genuinely nothing there, block on
                 # condition
-                task = None
+                taskframe = None
                 try:
-                    task = self.resume_queue.get(False)
+                    taskframe = self.resume_queue.get(False)
                 except Queue.Empty:
                     pass
-                if task is None:
+                if taskframe is None:
                     try:
                         task = self.in_queue.get(False)
+                        taskframe = makeframe(task, [])
                     except Queue.Empty:
                         pass
                 # got a task: wake up all
-                if task is not None:
+                if taskframe is not None:
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
-                    return makeframe(task, [])
+                    return taskframe
                 idle_worker_cvar.wait()
         self.idle = False
         return None
