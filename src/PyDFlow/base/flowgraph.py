@@ -42,12 +42,9 @@ class Task(object):
         # Validate the function inputs.  note: this will consume
         # kwargs that match task input arguments
         self._inputs = descriptor.validate_inputs(args, kwargs)
-        graph_mutex.acquire()
-        try: 
+        with graph_mutex: 
             self.__setup_inputs()
             self.__setup_outputs(**kwargs)
-        finally:
-            graph_mutex.release()
         
         # NOTE: self._exception will used to be store
         #    exception in case of an error
