@@ -202,6 +202,19 @@ def validate_inputs(input_spec, args, kwargs):
 
         return call_args
 
+def validate_swap(new_chans, old_chans):
+    """
+    Validate that a list of old_chans can be replaced with new_chans without breaking types.
+    """
+    if len(new_chans) != len(old_chans):
+        raise FlTypeError("new channels has different length %d from old channels %d" %
+                          (len(new_chans), len(old_chans)))
+        
+    for new, old in zip(new_chans, old_chans):
+        if not isinstance(new, old.__class__):
+            raise FlTypeError(("new channel %s is not a subclass of the class of" +  
+                " old channel %s, cannot replace") % (repr(new), repr(old)))
+
 def spec_zip(input_spec, other):
     for i, spec in enumerate(input_spec):
         if spec.isMulti():

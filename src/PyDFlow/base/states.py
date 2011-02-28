@@ -18,7 +18,7 @@ task_state_name = {
 #=================#
 CH_CLOSED, CH_CLOSED_WAITING, \
         CH_OPEN_W, CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED, CH_DONE_DESTROYED, \
-        CH_ERROR = range(8)
+        CH_ERROR, CH_REPLACED = range(9)
 
 channel_state_name = {
         CH_CLOSED: 'CH_CLOSED',
@@ -28,7 +28,8 @@ channel_state_name = {
         CH_OPEN_R: 'CH_OPEN_R',
         CH_DONE_FILLED: 'CH_DONE_FILLED',
         CH_DONE_DESTROYED: 'CH_DONE_DESTROYED',
-        CH_ERROR: 'CH_ERROR'}
+        CH_ERROR: 'CH_ERROR',
+        CH_REPLACED: 'CH_REPLACED'}
 #TODO: garbage collection state: destroy the data if no output tasks depend
 # on it?
 

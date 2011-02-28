@@ -22,6 +22,11 @@ from exceptions import *
 
 import time
 
+import LocalExecutor
+
+
+# Channels are set to this if there is an error.
+ErrorVal = object()
 
 
 class Task(object):
@@ -43,8 +48,8 @@ class Task(object):
         # kwargs that match task input arguments
         self._inputs = descriptor.validate_inputs(args, kwargs)
         with graph_mutex: 
-            self.__setup_inputs()
-            self.__setup_outputs(**kwargs)
+            self._setup_inputs()
+            self._setup_outputs(**kwargs)
         
         # NOTE: self._exception will used to be store
         #    exception in case of an error
@@ -55,7 +60,7 @@ class Task(object):
                                                      task_state_name[self._state])
 
 
-    def __setup_inputs(self):
+    def _setup_inputs(self):
         not_ready_count = 0
         inputs_ready = []
         for s, c in self._input_iter():
@@ -92,7 +97,7 @@ class Task(object):
         """
         return self._descriptor.zip(self._inputs) 
 
-    def __setup_outputs(self, **kwargs):
+    def _setup_outputs(self, **kwargs):
         outputs = None
         # Setup output channels
         if "_outputs" in kwargs:
@@ -111,7 +116,7 @@ class Task(object):
             o._register_input(self)
 
 
-    def _exec(self):
+    def _exec(self, continuation):
         """
         To be overridden in child class
         Start the task running and return immediately.
@@ -163,10 +168,23 @@ class Task(object):
 
     def _exec_async(self):
         """
+        Add to work queue.
         Guarantees that this task will be run at some point in the
         future.
         """
-        raise UnimplementedException("_exec_async not implemented")
+        logging.debug("_exec_async task %s" % repr(self))
+        if self._state in (T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT):
+            # Already enqueued
+            return
+        elif self._state == T_DATA_READY:
+            LocalExecutor.exec_async(self)
+        elif self._state == T_INACTIVE:
+            self._state = T_DATA_WAIT
+            LocalExecutor.exec_async(self)
+        elif self._state == T_ERROR:
+            raise Exception("Forcing task which had a previous error")
+        else:
+            raise Exception("Invalid state %d" % self.state)
     
     def isSynchronous(self):
         raise UnimplementedException("isSynchronous not implemented")
@@ -185,13 +203,15 @@ class Task(object):
             self._state = state
 
 
+Unbound = object()
+
 class Channel(flvar):
     """
     Channels form the other half of the bipartite graph, alongside tasks.
     This class is an abstract base class for all other channels to derive 
     from
     """
-    def __init__(self, bound=None):
+    def __init__(self, bound=Unbound):
         """
         bound_to is a location that the data will come from
         or will be written to.
@@ -255,14 +275,10 @@ class Channel(flvar):
         other._in_tasks = self._in_tasks
         # This channel should no longer be used
 
-        #TODO: negotiation
-        self._invalidate()
-
-    def _invalidate(self):
-        self._state = CH_ERROR
+        self._state = CH_REPLACED
+        self._replaced_with = other
         self._future = None
         self._bound = None
-
 
     def _prepare(self, mode):
         """
@@ -357,7 +373,8 @@ class Channel(flvar):
             self._state = CH_ERROR
             self._exceptions = exceptions
             # Should not be possible to call if future already set
-            self._future.set(None)
+            # TODO: set future? 
+            self._future.set(ErrorVal)
             self._notify_done()
         
     def state(self):
@@ -377,6 +394,8 @@ class Channel(flvar):
         """
         raise UnimplementedException("readable is not implemented")
 
+    def _try_readable(self):
+        raise UnimplementedException("_try_readable is not implemented")
     
     def set_state(self, state):
         with graph_mutex:

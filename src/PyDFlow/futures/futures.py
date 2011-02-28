@@ -24,6 +24,7 @@ class Future:
         self.__isset = False
         self.__function = function # will be set to None once run
         self.__cond = threading.Condition()
+        self.__merged = []
     
     def __repr__(self):
         with self.__cond:
@@ -72,7 +73,21 @@ class Future:
                                 + "future a second time")
             self.__isset = True
             self.__data = data
+            for f in self.__merged:
+                f.set(data)
             self.__cond.notifyAll()
+            
+            
+    def merge_future(self, other):
+        """
+        Make the value of this future automatically propagate to another future.
+        """
+        assert(not other.isSet())
+        with self.__cond:
+            if self.__isset:
+                other.set(self.__data)
+            else:
+                self.__merged.append(other)
 
     def isSet(self):
         with self.__cond:

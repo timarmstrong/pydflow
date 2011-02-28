@@ -32,6 +32,9 @@ def inc(x):
 def add(x, y):
     return x + y
 
+def double(n):
+    return add(n,n)
+
 @func((String), (String, String))
 def cat(first, second):
     return first + second 
@@ -110,6 +113,9 @@ class TestPyFun(unittest.TestCase):
         
     def testTwoArg(self):
         self.assertEqual(cat(String("cow"), String("moo")).get(), "cowmoo")
+    
+    def testSameArg(self):
+        self.assertEqual(double(Int(20)).get(), 40)
         
     def testInputTypes(self):
         x = Int(2)
@@ -187,7 +193,7 @@ class TestPyFun(unittest.TestCase):
         """
         self.assertEquals(silly_add(Int(50), Int(20)).get(), 70)
         
-    def testRecurse2Fail(self):
+    def testZZRecurse2Fail(self):
         """
         Check that max recursion depth failure passed up  ok.
         """

@@ -1,5 +1,5 @@
 from __future__ import with_statement
-from flowgraph import Task, Channel
+from flowgraph import Task, Channel, Unbound
 from states import *
 from PyDFlow.futures.futures import Future
 from PyDFlow.base.exceptions import *
@@ -11,6 +11,7 @@ from itertools import izip
 import logging
 
 import LocalExecutor
+from PyDFlow.base.flowgraph import ErrorVal
 
 
 class AtomicTask(Task):
@@ -64,29 +65,14 @@ class AtomicTask(Task):
         for o in self._outputs:
             o._prepare(M_WRITE)
 
-    def _exec_async(self):
-        """
-        Add to work queue
-        """
-        logging.debug("_exec_async task %s" % repr(self))
-        if self._state in (T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT):
-            # Already enqueued
-            return
-        elif self._state == T_DATA_READY:
-            LocalExecutor.exec_async(self)
-        elif self._state == T_INACTIVE:
-            self._state = T_DATA_WAIT
-            LocalExecutor.exec_async(self)
-        elif self._state == T_ERROR:
-            raise Exception("Forcing task which had a previous error")
-        else:
-            raise Exception("Invalid state %d" % self.state)
         
         
 
 class AtomicChannel(Channel):
     def __init__(self, *args, **kwargs):
         super(AtomicChannel, self).__init__(*args, **kwargs)
+
+        
         # Create the future
         self._future = Future()
         # __future stores a handle to the underlying data 
@@ -122,6 +108,13 @@ class AtomicChannel(Channel):
             #TODO: right?
             return done
 
+    def _replacewith(self, other):
+        # Merge the futures to handle the case where a thread
+        # is block on the current thread's future
+        other._future.merge_future(self._future)
+        super(AtomicChannel, self)._replacewith(other)
+
+
     def _prepare(self, mode):
         """
         Set up the future variable to be written into.
@@ -149,7 +142,7 @@ class AtomicChannel(Channel):
                 pass
             elif self._state == CH_DONE_FILLED:
                 self._open_read()
-                self._state == CH_OPEN_R
+                self._state = CH_OPEN_R
             else:
                 #TODO: exception type
                 raise Exception("Read from channel which does not yet have data assoc")
@@ -189,9 +182,12 @@ class AtomicChannel(Channel):
         oldstate = self._state
         if oldstate in (CH_OPEN_W, CH_OPEN_RW):
             self._future.set(val)
+            if hasattr(self, '_extra_futures'):
+                logging.debug(repr(self._extra_futures))
+                for f in self._extra_futures:
+                    f.set(val)
             self._state = CH_DONE_FILLED
             #update the state and notify output tasks
-
             for t in self._out_tasks:
                 t._input_readable(self, oldstate, CH_DONE_FILLED)
 
@@ -229,7 +225,7 @@ class AtomicChannel(Channel):
             res = self._future.get()
         finally:
             graph_mutex.acquire()
-        if res is None and self._state == CH_ERROR:
+        if res is ErrorVal and self._state == CH_ERROR:
             #TODO compound exception?
             raise self._exceptions[0] # first exception
         return res
@@ -246,14 +242,17 @@ class AtomicChannel(Channel):
         if self._state in (CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW):
             return True
         elif self._state in (CH_CLOSED, CH_DONE_DESTROYED):
-            if self._bound is not None and self._in_tasks == []:
-                if self._has_data():
-                    # Data might be there, assume that binding was correct
-                    self._prepare(M_WRITE)
-                    self._set(self._bound)
-                    return True
-                else: 
-                    raise Exception("Bound channel with no input tasks and no associated data")
+            if self._in_tasks == []:
+                if self._bound is Unbound:
+                    raise NoDataException("Unbound channel with no input tasks was forced.")
+                else:
+                    if self._has_data():
+                        # Data might be there, assume that binding was correct
+                        self._prepare(M_WRITE)
+                        self._set(self._bound)
+                        return True
+                    else: 
+                        raise NoDataException("Bound channel with no input tasks and no associated data was forced.")
         elif self._state in (CH_ERROR,):
             return False
         else:
@@ -271,7 +270,7 @@ class AtomicChannel(Channel):
             self._done_callbacks.append(done_callback)
 
         if self._state in (CH_CLOSED, CH_DONE_DESTROYED):
-            if self._bound is not None and self._in_tasks == []:
+            if self._bound is not Unbound and self._in_tasks == []:
                 self._try_readable()
             elif self._in_tasks != []:
                 # Enable task to be run, but

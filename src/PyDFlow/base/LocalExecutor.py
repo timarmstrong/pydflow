@@ -75,8 +75,7 @@ initFuture = Future(function=init)
 
 def exec_async(task):
     """
-    Takes an object callable with no arguments, and executes it
-    at some point in the future
+    Takes a task and executes it at some point in the future
     """
     # Ensure workers are initialized
     logging.debug("Entered exec_async")
@@ -404,7 +403,7 @@ class WorkerThread(threading.Thread):
                 # Next task to look at
                 for in_t in ch._in_tasks:
                     state = in_t._state
-                    #logging.debug("%s, %s" % (repr(ch), repr(in_t)))
+                    logging.debug("%s, %s" % (repr(ch), repr(in_t)))
                     if state == T_INACTIVE:
                         # We will recurse on this one
                         if next_task is None:
@@ -433,8 +432,8 @@ class WorkerThread(threading.Thread):
             
             logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_task))
             if dep_count == 0:
-                raise Exception("Invalid task frame state %s, all inputs \
-                                were ready but state said otherwise " %
+                raise Exception(("Invalid task frame state %s, all inputs " +
+                                "were ready but state said otherwise ") %
                                         repr(taskframe))
             else:
                 if next_task is not None:

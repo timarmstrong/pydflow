@@ -1,5 +1,6 @@
 from __future__ import with_statement
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.flowgraph import Unbound
 from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.states import *
 from PyDFlow.futures import *
@@ -15,7 +16,7 @@ class FutureChannel(AtomicChannel):
         
         # The bind variable for future channels will always be
         # either a future, or contents for a future
-        if self._bound is not None:
+        if self._bound is not Unbound:
             if not isinstance(self._bound, Future):
                 # If a non-future data item is provided as the binding,
                 # we should pack it into a future (this avoids users)
@@ -71,18 +72,58 @@ class FuncTask(AtomicTask):
     
         #TODO: tag failed tasks with exception?
         # In general need to work out failure handling logic
-        try: 
-            # Run the function in this thread
-            return_val = self._func(*(input_values))
-            #logging.debug("%s returned %s" %(repr(self), repr(return_val)))
-        except Exception, e:
-            with graph_mutex:
-                self.state = T_ERROR
-                raise
-                #raise Exception("Locally executed task threw exception %s" % repr(e))
+        
+        # Run the function in this thread.  If the function raises an exception
+        # it will be handled by the caller
+        return_val = self._func(*(input_values))
             
         with graph_mutex:
             continuation(self, return_val)
         
+    def isSynchronous(self):
+        return True
+
+    
+        
+class CompoundTask(AtomicTask):
+    def __init__(self, func, *args, **kwargs):
+        super(CompoundTask, self).__init__(*args, **kwargs)
+        self._func = func
+        
+    def _exec(self, continuation):
+        """
+        Just run the task in the current thread, 
+        assuming it is ready
+        """
+        logging.debug("Starting a CompoundTask %s" % repr(self))
+        #TODO: select execution backend, run me!
+        
+        with graph_mutex:
+            # Set things up
+            # Check state again to be sure it is sensible
+            if self._state == T_QUEUED:
+                self._prep_channels()
+                self._state = T_RUNNING
+            elif self._state in (T_RUNNING, T_DONE_SUCCESS):
+                #TODO: safe I think
+                return
+            else:
+                # Bad state
+                # TODO: better logic
+                raise Exception("Invalid task state %s encountered by worker thread" % 
+                                    (task_state_name[self._state]))
+        
+        # Run the function in this thread.  If the function raises an exception
+        # it will be handled by the caller
+        return_chans = self._func(*self._inputs)
+        try:
+            return_chans[0]
+            with graph_mutex:
+                continuation(self, [ch._get() for ch in return_chans])
+        except TypeError:
+            with graph_mutex:
+                continuation(self, return_chans._get())
+            
+            
     def isSynchronous(self):
         return True
