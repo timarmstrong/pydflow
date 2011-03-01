@@ -8,7 +8,7 @@ def resultlist(channels, max_ready=None):
     Take a bunch of channels, start them running and return results in 
     in the order provided
     """
-    # Use the resultbag as the execution mechanism and reassemble into
+    # Use the resultset as the execution mechanism and reassemble into
     # correct order here
     next_id = 0
     
@@ -23,7 +23,7 @@ def resultlist(channels, max_ready=None):
         def __cmp__(self, oth):
             return cmp(self.ix, oth.ix)
     
-    for i, res in resultbag(channels, max_ready=max_ready):
+    for i, res in resultset(channels, max_ready=max_ready):
         if i == next_id:
             yield res
             next_id += 1
@@ -36,7 +36,7 @@ def resultlist(channels, max_ready=None):
     while done != []:
         yield heapq.heappop(done).item
         
-def resultbag(channels, channel_ids=None, max_ready=None):
+def resultset(channels, channel_ids=None, max_ready=None):
     """
     Take a bunch of channels, start them running and iterate over
     the results in the order they finish.

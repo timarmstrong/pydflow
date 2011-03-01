@@ -90,6 +90,7 @@ class CompoundTask(AtomicTask):
     def __init__(self, func, *args, **kwargs):
         super(CompoundTask, self).__init__(*args, **kwargs)
         self._func = func
+        self._compound = True
         
     def _exec(self, continuation):
         """
@@ -127,6 +128,7 @@ class CompoundTask(AtomicTask):
                                    " %s and number of channels expected: %d ") % (repr(self),
                                         repr(return_chans), len(self._outputs)))
         with graph_mutex:
+            self._return_chans = return_chans
             for old, new in zip(self._outputs, return_chans):
                 new._replacewith(old) 
             

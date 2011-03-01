@@ -5,7 +5,7 @@ Created on 19/02/2011
 '''
 import unittest
 
-from PyDFlow.base.patterns import resultbag, resultlist
+from PyDFlow.base.patterns import resultset, resultlist
 from PyDFlow.PyFun import *
 import time
 import random
@@ -59,14 +59,14 @@ class Test(unittest.TestCase):
         exp = [(x, x) for x in range(COUNT)]
                 
         # with max-running at 1 should be in order
-        self.checkSequential((item for i, item in resultbag(res2b, max_ready=1)), COUNT)
+        self.checkSequential((item for i, item in resultset(res2b, max_ready=1)), COUNT)
 
         # Check that all of the expected results turn up
-        act1 = [(i, x.get()) for i, x in list(resultbag(res1))]
+        act1 = [(i, x.get()) for i, x in list(resultset(res1))]
         print act1
         self.assertEquals(sorted(act1), exp)
         
-        act2 = [(i, x.get()) for i, x in list(resultbag(res2))]
+        act2 = [(i, x.get()) for i, x in list(resultset(res2))]
         print act2
         self.assertEquals(sorted(act2), exp)
 

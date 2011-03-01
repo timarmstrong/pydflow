@@ -1,12 +1,11 @@
 * optionally remove type checking
 
+* Control flow structures 
+
 * App procedures: local and remote files
 * CUDA
 * Stack overflow avoidance?
 
-
-* Multiple:
-    * support lists of channels?
 
 * register named input
 
