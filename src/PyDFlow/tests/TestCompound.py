@@ -72,11 +72,11 @@ class Test(unittest.TestCase):
         ns = [35, 36, 346, 3, 78, 334, 2, 23, 2, 2342, 235, 7745, 6585, 7562, 234]
         self.assertEquals(sum(ns), psum(*[Int(n) for n in ns]).get())
                         
-    def testFunctionError(self):
-        self.assertRaises(TypeError, double(Int(None)).get)
+    #def testFunctionError(self):
+    #    self.assertRaises(TypeError, double(Int(None)).get)
 
-    def testCompoundError(self):
-        self.assertRaises(TypeError, double(Int(None)).get)
+    #def testCompoundError(self):
+    #    self.assertRaises(TypeError, double(Int(None)).get)
  
 
 if __name__ == "__main__":

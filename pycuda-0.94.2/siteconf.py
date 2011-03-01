@@ -1,0 +1,13 @@
+BOOST_INC_DIR = []
+BOOST_LIB_DIR = []
+BOOST_COMPILER = 'gcc43'
+USE_SHIPPED_BOOST = True
+BOOST_PYTHON_LIBNAME = ['boost_python-gcc43-mt']
+BOOST_THREAD_LIBNAME = ['boost_thread-gcc43-mt']
+CUDA_TRACE = False
+CUDA_ROOT = '/home/tga/cuda/'
+CUDA_ENABLE_GL = False
+CUDADRV_LIB_DIR = []
+CUDADRV_LIBNAME = ['cuda']
+CXXFLAGS = []
+LDFLAGS = []

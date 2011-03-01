@@ -570,7 +570,7 @@ class DoneContinuation:
             task._state = T_DONE_SUCCESS
             for val, chan in zip(return_vals, task._outputs) :
                 chan._set(val)
-        if self.contstack is None:
+        if self.contstack is not None:
             resume_continuation(self.contstack)
 
 def resume_continuation(cont):

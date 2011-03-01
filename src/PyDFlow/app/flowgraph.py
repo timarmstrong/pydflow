@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from PyDFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.atomic import AtomicChannel, AtomicTask, Unbound
 from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
@@ -13,7 +13,6 @@ import tempfile
 import shutil
 from os.path import exists
 import logging
-
 
 # Set of temp files not yet cleaned up
 # protect with global_mutex
@@ -60,7 +59,7 @@ class FileChannel(AtomicChannel):
         if self._future.isSet(): 
             #TODO: exception
             raise UnimplementedException("Cannot write, future already set")
-        elif self._bound is None:
+        elif self._bound is Unbound:
             self._bind_tmp()
         else:
             #is bound, should be fine :)
@@ -126,7 +125,7 @@ class LocalFileChannel(FileChannel):
         return open(self.get(), 'r')
 
     def _fileExists(self):
-        if self._bound is not None:
+        if self._bound is not Unbound:
             return exists(self._bound)
         else:
             return False

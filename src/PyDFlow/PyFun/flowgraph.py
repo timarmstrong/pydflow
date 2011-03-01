@@ -8,6 +8,7 @@ import PyDFlow.base.LocalExecutor as LocalExecutor
 
 
 import logging
+from PyDFlow.types.check import FlTypeError
 
 class FutureChannel(AtomicChannel):
 
@@ -102,7 +103,7 @@ class CompoundTask(AtomicTask):
             # Set things up
             # Check state again to be sure it is sensible
             if self._state == T_QUEUED:
-                self._prep_channels()
+                #self._prep_channels()
                 self._state = T_RUNNING
             elif self._state in (T_RUNNING, T_DONE_SUCCESS):
                 #TODO: safe I think
@@ -118,11 +119,16 @@ class CompoundTask(AtomicTask):
         return_chans = self._func(*self._inputs)
         try:
             return_chans[0]
-            with graph_mutex:
-                continuation(self, [ch._get() for ch in return_chans])
+            
         except TypeError:
-            with graph_mutex:
-                continuation(self, return_chans._get())
+            return_chans = [return_chans]
+        if len(return_chans) != len(self._outputs):
+                raise FlTypeError(("%s: Mismatch between number of channels returned by function " +
+                                   " %s and number of channels expected: %d ") % (repr(self),
+                                        repr(return_chans), len(self._outputs)))
+        with graph_mutex:
+            for old, new in zip(self._outputs, return_chans):
+                old <<= new 
             
             
     def isSynchronous(self):
