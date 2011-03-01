@@ -1,6 +1,5 @@
 '''
 Created on Feb 28, 2011
-
 @author: tga
 '''
 import unittest
@@ -28,17 +27,13 @@ def id(n):
 
 @compound((Int), (Multiple(Int)))
 def psum(*numbers):
-    i1 = islice(numbers, 0, None, 2)
-    i2 = islice(numbers, 2, None, 2)
+    i1 = numbers[0::2]
+    i2 = numbers[1::2]
     new_numbers = []
-    while True:
-        try:
-            a = i2.next()
-        except StopIteration:
-            new_numbers.append(a)
-            break
-        b = i1.next()
+    for a, b in zip(i1, i2):
         new_numbers.append(add(a, b))
+    if len(i1) > len(i2):
+        new_numbers.append(i1[-1])
     if len(new_numbers) == 0:
         return Int(0)
     elif len(new_numbers) == 1:
@@ -60,6 +55,9 @@ class Test(unittest.TestCase):
         Int(None).get()
     
     def testId(self):
+        x = id(Int(10))
+#        while True:
+#            print channel_state_name[x._state]
         self.assertEquals(id(Int(10)).get(), 10)
         
     def testId2(self):

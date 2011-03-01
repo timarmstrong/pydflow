@@ -128,7 +128,7 @@ class CompoundTask(AtomicTask):
                                         repr(return_chans), len(self._outputs)))
         with graph_mutex:
             for old, new in zip(self._outputs, return_chans):
-                old <<= new 
+                new._replacewith(old) 
             
             
     def isSynchronous(self):

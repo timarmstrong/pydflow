@@ -111,7 +111,7 @@ class AtomicChannel(Channel):
     def _replacewith(self, other):
         # Merge the futures to handle the case where a thread
         # is block on the current thread's future
-        other._future.merge_future(self._future)
+       # other._future.merge_future(._future)
         super(AtomicChannel, self)._replacewith(other)
 
 
