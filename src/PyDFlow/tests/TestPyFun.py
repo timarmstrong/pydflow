@@ -192,7 +192,38 @@ class TestPyFun(unittest.TestCase):
         go too far.
         """
         self.assertEquals(silly_add(Int(50), Int(20)).get(), 70)
+    
+    def testRecurse4(self):
+        """
+        Check that it works ok if we call a future which has been resolved
+        """
+        x = silly_add(Int(30), Int(20))
+        x.get()
         
+        @func((Int), ())
+        def fn():
+            return x.get()
+        
+        self.assertEquals(fn().get(), 50)
+    
+    def testRecurse5(self):
+        """
+        Check that it works ok if we call a future which is in process of ebing filled
+        """
+        @func((Int), (Int, None))
+        def sleep(x, dur):
+            time.sleep(dur)
+            return x
+        # Sleep to ensure that x won't be finished ebfore fn launches
+        x = sleep(silly_add(Int(30), Int(20)), 2)
+        x.force()
+        
+        @func((Int), ())
+        def fn():
+            return x.get()
+        
+        self.assertEquals(fn().get(), 50)
+    
     def testZZRecurse2Fail(self):
         """
         Check that max recursion depth failure passed up  ok.
