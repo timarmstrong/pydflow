@@ -15,20 +15,20 @@ notification thread running in this process which calls continuations.
 from PyDFlow.base.mutex import graph_mutex
 
 import subprocess
+import os
 import threading
 import Queue
 import logging
 import paths
 
 #TODO: no polling?
-POLL_INTERVAL = 0.1 # seconds between polling tasks when active
+POLL_INTERVAL = 0.05 # seconds between polling tasks when active
 #TODO: get info about number of processors
 MAX_RUNNING = 10
 
 LIFO = False
 
 structure_lock = threading.Lock()
-work_added = threading.Condition()
 init = False
 work_queue = None
 active_apps = None
@@ -39,68 +39,64 @@ def ensure_init():
     structure_lock.acquire()
     if not init:
         logging.debug("Initializing Local app task queue")
-        active_apps = set()
         work_queue = Queue.Queue()
-        monitor_t = MonitorThread(work_queue, active_apps)
+        notify_queue = Queue.Queue()
+        running_semaphore = threading.Semaphore(MAX_RUNNING)
+        executor_t = threading.Thread(target=accept_work, args=(work_queue, notify_queue, running_semaphore))
+        monitor_t = threading.Thread(target=monitor_processes, args=(notify_queue, running_semaphore))
         init = True
+        executor_t.start()
         monitor_t.start()
     
     structure_lock.release()
 
-class MonitorThread(threading.Thread):
-    def __init__(self, queue, active_apps):
-        threading.Thread.__init__(self)
-        self.queue = queue
-        self.active_apps = active_apps
-        self.setDaemon(True) # Ensure threads will exit with application
-    
-    def run(self):
-        while True:
-            # If there are no apps running, we just need to wait for something to
-            # be added
-            if len(self.active_apps) == 0:
-                t = self.queue.get()
-            else:
-                # Check for new tasks - don't block because we need to monitor 
-                # existing tasks
-                if len(self.active_apps) >= MAX_RUNNING:
-                    t = None
-                else:
-                    try:
-                        t = self.queue.get_nowait()
-                    except Queue.Empty:
-                        t = None
 
-            while t:
-                #launch task  
-                t.run()
-                self.active_apps.add(t)
-
-                if len(self.active_apps) >= MAX_RUNNING:
-                    t = None
-                else:
-                    try:
-                        t = self.queue.get_nowait()
-                    except Queue.Empty:
-                        t = None
-
-
-            # Check to see if any existing tasks have finished, if so need to
-            # invoke callback
-            for app in self.active_apps.copy():
-                if app.is_done():
-                    logging.debug("App done!")
-                    self.active_apps.remove(app)
-                    self.queue.task_done()
-                    # callback: TODO: should I have a separate thread for these?
-                    app.do_callback()
-
-            # Wait either the POLL_INTERVAL, or until there is work added to the queue
-            global work_added
-            work_added.acquire()
-            if self.queue.empty():
-                work_added.wait(POLL_INTERVAL)
-            work_added.release()
+def accept_work(work_queue, notify_queue, semaphore):
+    while True:
+        # If there are no apps running, we just need to wait for something to
+        # be added
+        semaphore.acquire()
+        app = work_queue.get()
+        app.run()
+        notify_queue.put(app)
+        work_queue.task_done()
+        logging.debug("Got work %s" % repr(app))
+                    
+def monitor_processes(notify_queue, semaphore):
+    active_apps = {}
+    while True:
+        # First wait until something finishes\
+        
+        #sif len(active_apps) > 0:
+            #logging.debug("os,wait()")
+            #pid, stat = os.wait()
+            #logging.debug("Pid %d finished" % pid)
+            #block = True
+        #else:
+            #block = False
+#            pid = None
+        
+        # Make sure active_apps dict is up to date
+        queue_notempty = True
+        while queue_notempty:
+            try:
+                app = notify_queue.get(False, POLL_INTERVAL)
+                logging.debug("Monitor app %s" % repr(app))
+                active_apps[app.process.pid] = app
+            except Queue.Empty:
+                queue_notempty = False
+        #if pid is not None:
+        #    match = active_apps.get(pid, None)
+        for app in active_apps.values():
+            if app.is_done():
+                logging.debug("App done!")
+                del active_apps[app.process.pid]
+                notify_queue.task_done()
+                semaphore.release()
+                # Do callbacks in separate thread
+                callback_thread = threading.Thread(target=app.do_callback)
+                callback_thread.start()
+        
 
 
 class AppQueueEntry(object):
@@ -155,6 +151,7 @@ class AppQueueEntry(object):
         return (self.exit_code is not None)
     
     def do_callback(self):
+        #logging.debug("do_callback")
         if self.process is None:
             raise Exception("Process has not yet been run, can't callback")
         with graph_mutex:
@@ -179,7 +176,4 @@ def launch_app(task, continuation):
     ensure_init()
     logging.debug("Added app %s to work queue" % repr(task))
     entry = AppQueueEntry(task, continuation)
-    work_added.acquire()
     work_queue.put(entry)
-    work_added.notify()
-    work_added.release()
