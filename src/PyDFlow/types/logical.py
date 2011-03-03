@@ -33,3 +33,7 @@ class flvar(object):
     def issubclassof(cls, ocls):
         return issubclass(cls, ocls)
 
+
+class Placeholder(object):
+    def __init__(self, expected_class):
+        self.expected_class = expected_class

@@ -1,5 +1,5 @@
-from PyFlow.base.decorators import task_decorator
-from PyFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.decorators import task_decorator, TaskWrapper
+from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 
 import pycuda.autoinit
 import pycuda.driver as drv
@@ -7,7 +7,7 @@ import numpy as np
 
 from pycuda.compiler import SourceModule
 
-cudavar = CUDAChannel
+
 
 
 class cuda_kernel(task_decorator):
@@ -32,32 +32,33 @@ class CUDATask(AtomicTask):
             will have to wait until the async channel has actually finished.
 
     """
-    def __init__(self, *args, block=None, grid=(1,1), **kwargs):
-        base.AtomicTask.__init__(self, *args, **kwargs)
+    def __init__(self, block, grid, *args,  **kwargs):
+        super(CUDATask, self).__init__(self, *args, **kwargs)
         self.block = block
         self.grid = grid
+        #self.block = kwargs.get("block", None)
+        #self.grid = kwargs.get("grid", (1,1))
 
 
     def _exec(self):
-        input_data = self._gather_input_data()
-        # TODO: launch asynchronous kernel
+        # TODO: update state
+        # TODO: prep channels.  If GPU channels are already on device, we're good.  Otherwise
+        #    we will need to worry about starting asynchronously a data transfer
+        
+        # TODO: set input arguments
+        
+        # TODO: launch asynchronous kernel by sending to GPU host thread via queue
+        pass
+        
+        
 
-class CUDAKernel(_CUDAKernel):
-    """
-    Hack to separate out func_name and source_mod - nicer interface for users
-    of module
-    """
-    def __init__(self, func_name, source_mod, *args, **kwargs)
-        _CUDAKernel.__init__(self, (func_name, source_mod), *args, **kwargs)
-    
-
-class _CUDAKernel(base.TaskWrapper):
+class _CUDAKernel(TaskWrapper):
     """
     Similar to TaskWrapper - this can either be invoked directly
     by the user, or can be invoked indirectly with the @cuda_kernel decorator
     """
-    def __init__(self, func_name_source_mod_tup, task_class, descriptor, default_block=None, default_grid=None)
-        func_name, source_mod = func_name_source_mod_type
+    def __init__(self, func_name_source_mod_tup, task_class, descriptor, default_block=(1,1), default_grid=(1,1)):
+        func_name, source_mod = func_name_source_mod_tup
         # Compile the function
         self.cuda_func = source_mod.get_function(func_name)
         self._descriptor = descriptor #TODO: right?
@@ -77,7 +78,7 @@ class _CUDAKernel(base.TaskWrapper):
         if grid:
             kwargs['grid'] = grid
         #Delegate to parent class
-        base.TaskWrapper.__call__(self, *args, **kwargs)
+        super(_CUDAKernel, self).__call__(self, *args, **kwargs)
 
 class CUDAChannel(AtomicChannel):
     """
@@ -103,3 +104,15 @@ class CUDAChannel(AtomicChannel):
 
     """
     pass
+
+
+cudavar = CUDAChannel
+
+class CUDAKernel(_CUDAKernel):
+    """
+    Hack to separate out func_name and source_mod - nicer interface for users
+    of module
+    """
+    def __init__(self, func_name, source_mod, *args, **kwargs)
+        _CUDAKernel.__init__(self, (func_name, source_mod), *args, **kwargs)
+    

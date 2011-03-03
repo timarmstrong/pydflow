@@ -45,7 +45,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 1
+NUM_THREADS = 4
 workers = []
 # These deques store the work remaining to be done
 work_deques = None
@@ -181,9 +181,7 @@ class WorkerThread(threading.Thread):
         """
         Start the task running.
         """
-        #TODO: dispatch to executor?
         task = taskframe[0]
-        assert(all([d is None for d in taskframe[1]]))
         contstack = taskframe[2]
         logging.debug("%s starting task" % self.getName())
                     
@@ -306,7 +304,7 @@ class WorkerThread(threading.Thread):
         while victim != victim1:
             try:
                 taskframe = work_deques[victim].popleft()
-                while taskframe is not ReturnMarker:
+                while taskframe is ReturnMarker:
                     taskframe = work_deques[victim].popleft()
                 # Run and then go back to normal loop
                 #print ("Thread %s stole task %s" % (self.getName(), repr(taskframe[0])))
@@ -332,6 +330,28 @@ class WorkerThread(threading.Thread):
     
         #TODO: locking, I don't think we can assume exclusive access
         logging.debug("%s: looking at task frame %s " % (self.getName(), repr(taskframe)))
+        """
+        while hasattr(taskframe[0], "_compound"):
+            self.exec_task(taskframe)
+            # TODO: this is hacky
+            with graph_mutex:
+                chs = taskframe[0]._return_chans
+                new_tasks = []
+                for ch in chs:
+                    # TODO: other states?
+                    if ch._state == CH_CLOSED_WAITING:
+                        for t in ch._in_tasks:
+                            new_tasks.append(t)
+            if len(new_tasks) == 0:
+                return
+            else:
+                new_frame = None
+                for t in new_tasks:
+                    if new_frame is not None:
+                        self.deque.append(new_frame)
+                    new_frame = makeframe(t, taskframe[2])
+                taskframe = new_frame
+        """
         task = taskframe[0]
         graph_mutex.acquire()
         state = task._state
@@ -388,6 +408,7 @@ class WorkerThread(threading.Thread):
             
             # Looks at inputs that might not yet be ready
             for i, ch in enumerate(deps):
+                # TODO: check for placeholder channel and expand it at this point
                 # TODO: this is assuming atomic channel
                 # don't need to check if we just created frame while we were holding lock
                 if ch is None:  
@@ -460,21 +481,36 @@ class WorkerThread(threading.Thread):
                     # All dependencies already being executed, so need to suspend
                     logging.debug("Suspending task frame %s until dependencies avail"
                                   % repr(taskframe))
+                    #TODO: really need to think about how this will work in presence of multiple
+                    #     channels
+                    # constraints:
+                    #  - task state should be set to T_DATA_WAIT so that no other evaluators will
+                    #    attempt to modify it
+                    #  - multiple threads may finish evaluating channels at same time
+                    #  - other evaluators may be evaluating channels at same time
+                    #  - 
+                    
                     # Make callback closure
                     def task_resumer(channel):
-                        # Se
+                        # graph mutex will be held when this called
                         try:
                             ch_index = taskframe[1].index(channel)
                             taskframe[1][ch_index] = None
                         except ValueError:
                             pass
-                        
+                        for ch in taskframe[1]:
+                            if ch is not None and not ch._readable():
+                                logging.debug("task resumer can't yet resume taskframe:%s" % (
+                                                        repr(taskframe)))
+                                return
                         logging.debug("task resumer resuming taskframe:%s" % (repr(taskframe)))
                         resume_taskframe(taskframe)
                         
                     for channel in taskframe[1]:
                         if channel is not None:
                             #TODO: assuming atomic?
+                            # All channels are already being evaluated by other threads:
+                            #     just register for notifications
                             channel._force(done_callback=task_resumer)
                     # exit
                     return None

@@ -14,7 +14,8 @@ assume that any locks are held.
 
 import logging
 from PyDFlow.types import flvar
-from PyDFlow.types.check import FlTypeError  
+from PyDFlow.types.check import FlTypeError
+from PyDFlow.types.logical import Placeholder  
 from PyDFlow.base.mutex import graph_mutex
 
 from states import *
@@ -294,7 +295,7 @@ class Channel(flvar):
         should default implementaion just be nice and change the
         state as needed?
         """
-        pass
+        raise UnimplementedException("_prepare is not implemented")
         #TODO
 
     def _register_input(self, input_task):
@@ -335,6 +336,8 @@ class Channel(flvar):
         graph_mutex.acquire()
         self._register_input(input_task)
         graph_mutex.release()
+
+
 
     def get(self):
         """
@@ -400,3 +403,75 @@ class Channel(flvar):
     def set_state(self, state):
         with graph_mutex:
             self._state = state
+        
+    
+class ChannelPlaceholder(Placeholder, Channel):
+    """
+    This should have a composite task as input.
+    When this is forced, the composite task will construct a new task graph, with the corresponding
+    output of te task graph to be grafted into the task graph at the same place as this placeholder.
+    
+    Assuming that the function does not cause an exception, the steps are:
+    1. Identify the channel placeholders corresponding to the outputs of the composite task
+    2. Run the composite task to generate a new task graph, which has the same (or a subset) of the inputs
+        to the composite task, and a set of new output channels corresponding to the placeholders.
+    3. Replace the placeholders with the composite tasks in the task graph.  
+        The placeholders are updated to point to the original output channels
+    A Composite
+    
+    TODO: think about what happens if expanding function fails. This channel should probably
+        go into a CH_ERROR state.
+    """
+    def __init__(self, expected_class):
+        Placeholder.__init__(self, expected_class)
+        Channel.__init__(self) # Inputs and outputs will be managed
+        self._proxy_for = None
+
+    def _check_real_channel(self):
+        """
+        a) check if the real channel exists.  Raise exception otherwise
+        b) compress chain of pointers if there are multiple proxies
+        """
+        chan = self._proxy_for
+        while chan is not None and isinstance(chan, ChannelPlaceholder):
+            chan = chan._proxy_for 
+        
+        if chan is None:
+            raise EmptyPlaceholderException("Cannot complete operation: proxy does not point to anything")
+        else:
+            self._proxy_for = chan
+
+    def _replacewith(self, other):
+        """
+        
+        """
+        if self._proxy_for is None:
+            self._proxy_for = other
+            #TODO: does thsi correctly update inputs, outputs?
+            Channel._replacewith(self, other)
+        else:
+            self._check_real_channel()
+            self._proxy_for._replacewith(other)
+            
+    
+    def get(self):
+        with graph_mutex:
+            self._force()
+        self._check_real_channel()
+        self._proxy_for.get()
+        
+    def _force(self, done_callback=None):
+        # TODO: input task should be a compound task.
+        #  make sure the compound task is expanded
+        pass
+    
+    
+    def __repr__(self):
+        if self._proxy_for is None:
+            return "<Placeholder for channel of type %s>" % repr(self.expected_class)
+        else:
+            return repr(self._proxy_for)
+    def state(self):
+        pass
+        #TODO
+    #TODO: do I need to imp

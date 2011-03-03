@@ -1,4 +1,4 @@
-from logical import flvar
+from logical import flvar, Placeholder
 import inspect
 
 """
@@ -131,27 +131,33 @@ def check_logicaltype(thetype, var, name=None):
     # First check that the logical type matches
     if thetype is None:
         return var
-    else:
-        # A "normal" python variable is expected to be passed to the
-        # function.  Don't need to do anything, except pass whatever
-        # we got in
-        # Check type of matched variable matches the type signature
+    if isinstance(var, Placeholder):
+        if issubclass(var._expected_class, type):
+            return var
+        else:
+            raise FlTypeError("Proxy has wrong expected class %s, not a subclass of %s" % (
+                                    (repr(var._expected_class), repr(thetype))))
+        
+    # A "normal" python variable is expected to be passed to the
+    # function.  Don't need to do anything, except pass whatever
+    # we got in
+    # Check type of matched variable matches the type signature
+    if not isinstance(var, thetype):
+        try:
+            if len(var) == 1:
+                var = var[0]
+        except TypeError:
+            raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
+                repr(var), repr(var)))
+        except AttributeError:
+            raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
+                repr(var), repr(var)))
+        # check the subscripted type now
         if not isinstance(var, thetype):
-            try:
-                if len(var) == 1:
-                    var = var[0]
-            except TypeError:
-                raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
-                    repr(var), repr(var)))
-            except AttributeError:
-                raise FlTypeError("Var %s:%s not a swift variable and not subscriptable" % (
-                    repr(var), repr(var)))
-            # check the subscripted type now
-            if not isinstance(var, thetype):
-                raise FlTypeError("Var %s:%s not a subtype of specified type. \
-                    Required type %s, actual type %s" % (
-                    repr(name), repr(var), repr(thetype),
-                    type(type(var))))
+            raise FlTypeError("Var %s:%s not a subtype of specified type. \
+                Required type %s, actual type %s" % (
+                repr(name), repr(var), repr(thetype),
+                type(type(var))))
     return var 
 
 def validate_inputs(input_spec, args, kwargs):
