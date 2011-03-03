@@ -45,7 +45,9 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 4
+NUM_THREADS = 10
+STEAL_ATTEMPTS = max(1, NUM_THREADS / 4)
+
 workers = []
 # These deques store the work remaining to be done
 work_deques = None
@@ -298,17 +300,21 @@ class WorkerThread(threading.Thread):
         returns False if unsuccessful
         """
         victim1 = -1
-        victim = (self.last_steal + 1) % NUM_THREADS
+        
         # try each of the threads in turn in a round robin fashion
         # TODO: randomise somewhat so we don't have bus pileup effect
-        while victim != victim1:
+        for i in range(STEAL_ATTEMPTS):
+            victim = random.randint(0, NUM_THREADS - 1)
+            if victim >= self.worker_num:
+                victim += 1
             try:
                 taskframe = work_deques[victim].popleft()
                 while taskframe is ReturnMarker:
                     taskframe = work_deques[victim].popleft()
                 # Run and then go back to normal loop
                 #print ("Thread %s stole task %s" % (self.getName(), repr(taskframe[0])))
-                logging.debug("Thread %s stole task %s" % (self.getName(), repr(taskframe[0])))
+                logging.debug("Thread %s stole task %s from thread #%d" % (
+                            self.getName(), repr(taskframe[0]), victim))
                 self.eval_taskframe(taskframe)
                 return True
             except IndexError:
@@ -361,6 +367,7 @@ class WorkerThread(threading.Thread):
             self.exec_task(taskframe)
         elif state in (T_DONE_SUCCESS, T_RUNNING):
             # already started elsewhere
+            graph_mutex.release()
             return
         elif state == T_DATA_WAIT:
             try:
@@ -533,6 +540,7 @@ def force_recursive(channel):
     Assume we are holding the global mutex when this is called
     """
     thread = threading.currentThread()
+    logging.debug("force_recursive %s" % thread.getName())
     if not isWorkerThread(threading.currentThread()):
         raise Exception("Non-worker thread running force_recursive")
      
@@ -560,6 +568,7 @@ def force_recursive(channel):
         # add marker to deque to ensure we don't
         # start executing old tasks
         thread.deque.append(ReturnMarker)
+        #thread.deque.extend(to_run)
         thread.deque.extend(to_run)
         graph_mutex.release()
         try:
