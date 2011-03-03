@@ -14,6 +14,8 @@ import threading as th
 from PyDFlow.types import Multiple, FlTypeError
 
 import PyDFlow.examples.PyFun as ex
+from PyDFlow.base import LocalExecutor
+from PyDFlow.base.patterns import resultset
 
 Int = future.subtype()
 String = future.subtype()
@@ -64,7 +66,12 @@ def silly_add(x, y):
         return silly_add(Int(x + 1), Int(y - 1)).get()
     else:
         return silly_add(Int(x - 1), Int(y + 1)).get()
-    
+
+@func((Int), (None))
+def just_sleep(dur):
+    time.sleep(dur)
+    return 0
+
 class MyException(Exception):
     pass
 @func((Int), ())
@@ -223,6 +230,26 @@ class TestPyFun(unittest.TestCase):
             return x.get()
         
         self.assertEquals(fn().get(), 50)
+    
+    def testBalance1(self):
+        ts = [just_sleep(0.5) for i in range(LocalExecutor.NUM_THREADS)]
+        start = time.time()
+        res = resultset(ts)
+        for r in res:
+            pass
+        end = time.time()
+        print "Took %f" % (end - start)
+        self.assertTrue(end - start < 1.0)
+        
+    def testBalance2(self):
+        @func((Int),(Multiple(Int)))
+        def sleep_many(*sleeps):
+            return 0
+        start = time.time()
+        sleep_many(*[just_sleep(0.5) for i in range(LocalExecutor.NUM_THREADS)]).get()
+        end = time.time()
+        print "Took %f" % (end - start)
+        self.assertTrue(end - start < 1.0)
     
     def testZZRecurse2Fail(self):
         """
