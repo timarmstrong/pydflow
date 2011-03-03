@@ -30,8 +30,9 @@ import random
 # INPUT QUEUE
 #==============================================#
 # Maximum time to wait before trying to steal work
-# QUEUE_TIMEOUT = 0.05
-QUEUE_TIMEOUT = 1
+QUEUE_TIMEOUT = 0.05
+#QUEUE_TIMEOUT = 0.1
+
 # Work first arrives in this queue from other threads
 in_queue = None
 
@@ -156,13 +157,13 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to resume" % self.getName())
             # Try to get a frame from the resume queue
-            if self.run_from_queue(self.resume_queue, False, None, frame=True):
+            if self.run_from_queue(self.resume_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(), frame=True):
                 logging.debug("%s ran from resume" % self.getName())
                 continue
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            if self.run_from_queue(self.in_queue, True, QUEUE_TIMEOUT * random.random(),frame=False):
+            if self.run_from_queue(self.in_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(),frame=False):
                 logging.debug("%s ran from new work queue" % self.getName())
                 continue 
             
