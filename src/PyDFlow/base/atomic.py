@@ -203,8 +203,8 @@ class AtomicChannel(Channel):
 
     def get(self):
         with graph_mutex:
-            res = self._get() 
-        return res  # block on future
+            res = self._get() # block on future
+        return res  
 
     def _get(self):
         """

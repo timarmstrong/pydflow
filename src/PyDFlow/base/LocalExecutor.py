@@ -30,8 +30,7 @@ import random
 # INPUT QUEUE
 #==============================================#
 # Maximum time to wait before trying to steal work
-QUEUE_TIMEOUT = 0.05
-#QUEUE_TIMEOUT = 0.1
+QUEUE_TIMEOUT = 0.1
 
 # Work first arrives in this queue from other threads
 in_queue = None
@@ -46,8 +45,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 10
-STEAL_ATTEMPTS = max(1, NUM_THREADS / 4)
+NUM_THREADS = 4
 
 workers = []
 # These deques store the work remaining to be done
@@ -301,11 +299,11 @@ class WorkerThread(threading.Thread):
         returns False if unsuccessful
         """
         victim1 = -1
-        
+        thread_ids = range(NUM_THREADS - 1)
+        random.shuffle(thread_ids)
         # try each of the threads in turn in a round robin fashion
         # TODO: randomise somewhat so we don't have bus pileup effect
-        for i in range(STEAL_ATTEMPTS):
-            victim = random.randint(0, NUM_THREADS - 1)
+        for victim in thread_ids:
             if victim >= self.worker_num:
                 victim += 1
             try:
