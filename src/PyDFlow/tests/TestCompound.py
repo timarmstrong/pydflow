@@ -23,6 +23,10 @@ def double(n):
 def id(n):
     return n
 
+@compound((Int, Int), (Int, Int))
+def swap(x, y):
+    return (y, x)
+
 @compound((Int), (Multiple(Int)))
 def psum_bottomup(*numbers):
     i1 = numbers[0::2]
@@ -92,12 +96,37 @@ class Test(unittest.TestCase):
     def testTree2(self):
         ns = [35, 36, 346, 3, 78, 334, 2, 23, 2, 2342, 235, 7745, 6585, 7562, 234]
         self.assertEquals(sum(ns), psum_topdown(*[Int(n) for n in ns]).get())
-                        
-    #def testFunctionError(self):
-    #    self.assertRaises(TypeError, double(Int(None)).get)
+    
+    def testTwoOutputs(self):
+        x1 = Int(10)
+        y1 = Int(20)
+        
+        y2, x2 = swap(x1, y1)
+        
+        self.assertEquals(x2.get(), 10)
+        self.assertEquals(y2.get(), 20)
+    
+    def testIntermediate(self):
+        #raise Exception()
+        x1 = Int(10)
+        y1 = Int(20)
+        
+        y2, x2 = swap(x1, y1)
+        
+        y22 = double(y2)
+        x22 = double(x2)
+        
+        self.assertEquals(x22.get(), 20)
+        self.assertEquals(x2.get(), 10)
+        self.assertEquals(y2.get(), 20)
+        self.assertEquals(y22.get(), 40)    
+        
+        
+    def testFunctionError(self):
+        self.assertRaises(TypeError, double(Int(None)).get)
 
-    #def testCompoundError(self):
-    #    self.assertRaises(TypeError, double(Int(None)).get)
+    def testCompoundError(self):
+        self.assertRaises(TypeError, double(Int(None)).get)
  
 
 if __name__ == "__main__":

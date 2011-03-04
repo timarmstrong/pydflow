@@ -172,6 +172,11 @@ class Task(object):
         for i, o in enumerate(self._inputs):
             if o is old:
                 self._inputs[i] = new
+                #TODO: need t ensure that state is corectly updated
+                if new._readable():
+                    self._input_readable(new, old._state, new._state)
+                    
+                
 
 
     def _exec_async(self):
