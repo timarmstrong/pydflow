@@ -44,6 +44,11 @@ class Test(unittest.TestCase):
 
     def setUp(self):
         from stacktrace import trace_start
+        #import os
+        #try:
+        #    os.remove("trace.html")
+        #except OSError:
+        #    pass
         #trace_start("trace.html")
 
     def tearDown(self):
@@ -59,8 +64,11 @@ class Test(unittest.TestCase):
 #            print channel_state_name[x._state]
         self.assertEquals(id(Int(10)).get(), 10)
         
+       
     def testId2(self):
-        self.assertEquals(id(id(Int(10))).get(), 10)
+        expr = id(id(Int(10)))
+        res = expr.get()
+        self.assertEquals(res, 10)
     
     def testSimple(self):
         self.assertTrue(double(Int(10)).get(), 20) 

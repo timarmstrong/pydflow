@@ -422,9 +422,9 @@ class WorkerThread(threading.Thread):
                     fail_task(task, continuation, ch._exceptions)
                     continue
                 elif hasattr(ch, '_proxy_for'):
-                    ch._expand()
-                    deps[i] = ch._proxy_for
-                    ch = ch._proxy_for
+                    ch = ch._expand()
+                    deps[i] = ch
+                    
                 elif first_iter and ch._readable():                          
                     # is ready.. don't do anything
                     logging.debug("%s became readable" % repr(ch))

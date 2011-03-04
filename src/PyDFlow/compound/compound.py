@@ -8,8 +8,11 @@ import logging
 
 from PyDFlow.types.logical import Placeholder  
 from PyDFlow.base.mutex import graph_mutex
+from PyDFlow.futures import Future
 from PyDFlow.base.flowgraph import Channel
 from PyDFlow.base.atomic import AtomicTask
+
+import threading
 
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
@@ -35,31 +38,29 @@ class ChannelPlaceholder(Placeholder, Channel):
     def __init__(self, expected_class):
         Placeholder.__init__(self, expected_class)
         Channel.__init__(self) # Inputs and outputs will be managed
-        self._proxy_for = None
+        self._proxy_for = Future()
 
     def _check_real_channel(self):
         """
         a) check if the real channel exists.  Raise exception otherwise
         b) compress chain of pointers if there are multiple proxies
         """
-        chan = None
-        next = self._proxy_for
-        while next is not None and isinstance(next, ChannelPlaceholder):
-            chan = next 
-            next = next._proxy_for 
+        chan = self
+        next = self._proxy_for.get()
         
-        if next is None:
-            raise EmptyPlaceholderException("Cannot complete operation: proxy does not point to anything")
-        else:
-            self._proxy_for = next
+        while isinstance(next, ChannelPlaceholder):
+            chan = next
+            next = next._proxy_for.get()
+        
+        self._proxy_for = chan._proxy_for
 
     def _replacewith(self, other):
         """
         
         """
         logging.debug("_replacewith %s %s" % (repr(self), repr(other)))
-        if self._proxy_for is None:
-            self._proxy_for = other
+        if not self._proxy_for.isSet():
+            self._proxy_for.set(other)
             #TODO: does thsi correctly update inputs, outputs?
             
             for t in self._in_tasks:
@@ -68,18 +69,21 @@ class ChannelPlaceholder(Placeholder, Channel):
             other._in_tasks = self._in_tasks
         else:
             self._check_real_channel()
-            self._proxy_for._replacewith(other)
+            self._proxy_for.get()._replacewith(other)
             
     
     def get(self):
+        #TODO: check?
         with graph_mutex:
             self._force()
             self._check_real_channel()
-        return self._proxy_for.get()
+            next = self._proxy_for.get()
+        #TODO: this is a bit hacky...
+        return next._future.get()
         
 
     def _expand(self):
-        if self._proxy_for is None:
+        if not self._proxy_for.isSet():
             assert len(self._in_tasks) == 1
             in_task = self._in_tasks[0]
             #own_ix = in_task._outputs.index(self)
@@ -90,8 +94,10 @@ class ChannelPlaceholder(Placeholder, Channel):
             finally:
                 graph_mutex.acquire()
             
+            assert(self._proxy_for.isSet())
             #self._proxy_for = in_task._outputs[own_ix]
-            logging.debug("expanded %s, new chan is %s" % (repr(self), repr(self._proxy_for)))
+            logging.debug("expanded %s, new chan is %s" % (repr(self), repr(self._proxy_for.get())))
+            return self._proxy_for.get()
         else:
             logging.debug("Proxy for %s" % repr(self._proxy_for))
 
@@ -100,16 +106,19 @@ class ChannelPlaceholder(Placeholder, Channel):
         #  make sure the compound task is expanded
         # TODO: less dreadful implementation
         self._expand()
+        next_chan = self._proxy_for.get()
+        next_chan._force(done_callback)
         self._check_real_channel()
-        self._proxy_for._force(done_callback)
+        
+        
     
     def __repr__(self):
-        if self._proxy_for is None:
+        if not self._proxy_for.isSet():
             return "<Placeholder for channel of type %s>" % repr(self._expected_class)
         else:
-            logging.debug("%d %d" % (id(self), id(self._proxy_for)))
+            logging.debug("%d %d" % (id(self), id(self._proxy_for.get())))
             #raise Exception()
-            return repr(self._proxy_for)
+            return repr(self._proxy_for.get())
     def state(self):
         pass
         #TODO
