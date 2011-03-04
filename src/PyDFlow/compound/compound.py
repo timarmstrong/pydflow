@@ -43,7 +43,7 @@ class ChannelPlaceholder(Placeholder, Channel):
 
     def _check_real_channel(self):
         """
-        a) check if the real channel exists.  Raise exception otherwise
+        a) check if the real channel exists.  return true if found
         b) compress chain of pointers if there are multiple proxies
         """
         chan = self
@@ -51,7 +51,11 @@ class ChannelPlaceholder(Placeholder, Channel):
         
         while isinstance(next, ChannelPlaceholder):
             chan = next
-            next = next._proxy_for.get()
+            if next._proxy_for.isSet():
+                next = next._proxy_for.get()
+            else:
+                self._proxy_for = next._proxy_for
+                raise Exception("no real channel found")
         
         self._proxy_for = chan._proxy_for
 
@@ -133,15 +137,17 @@ class ChannelPlaceholder(Placeholder, Channel):
         if not self._proxy_for.isSet():
             return "<Placeholder for channel of type %s>" % repr(self._expected_class)
         else:
-            logging.debug("%d %d" % (id(self), id(self._proxy_for.get())))
-            
             return repr(self._proxy_for.get())
-            return "<Placeholder for channel of type %s>" % repr(self._expected_class)
+            
     def state(self):
-        pass
+        raise UnimplementedException("state not implemented")
         #TODO
     #TODO: do I need to imp
-    
+    def _try_readable(self):
+        if self._proxy_for.isSet():
+            raise Exception("should not call _try_readable??")
+        else:
+            return False  
         
 class CompoundTask(AtomicTask):
     """

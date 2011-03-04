@@ -423,6 +423,7 @@ class WorkerThread(threading.Thread):
                     continue
                 elif hasattr(ch, '_proxy_for'):
                     ch = ch._expand()
+                    logging.debug("expanded channel to %s " % repr(ch))
                     deps[i] = ch
                     
                 elif first_iter and ch._readable():                          

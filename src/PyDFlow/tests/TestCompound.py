@@ -24,7 +24,7 @@ def id(n):
     return n
 
 @compound((Int), (Multiple(Int)))
-def psum(*numbers):
+def psum_bottomup(*numbers):
     i1 = numbers[0::2]
     i2 = numbers[1::2]
     new_numbers = []
@@ -37,7 +37,19 @@ def psum(*numbers):
     elif len(new_numbers) == 1:
         return new_numbers[0]
     else:
-        return psum(*new_numbers)
+        return psum_bottomup(*new_numbers)
+
+@compound((Int), (Multiple(Int)))
+def psum_topdown(*numbers):
+    if len(numbers) == 1:
+        return numbers[0]
+    elif len(numbers) == 2:
+        return add(numbers[0], numbers[1])
+    else:
+        split = len(numbers)/2
+        i1 = numbers[0:split]
+        i2 = numbers[split:]
+        return add(psum_topdown(*i1), psum_topdown(*i2))
 
 class Test(unittest.TestCase):
 
@@ -73,10 +85,13 @@ class Test(unittest.TestCase):
     def testSimple(self):
         self.assertTrue(double(Int(10)).get(), 20) 
 
-    def testTree(self):
-        
+    def testTree1(self):
         ns = [35, 36, 346, 3, 78, 334, 2, 23, 2, 2342, 235, 7745, 6585, 7562, 234]
-        self.assertEquals(sum(ns), psum(*[Int(n) for n in ns]).get())
+        self.assertEquals(sum(ns), psum_bottomup(*[Int(n) for n in ns]).get())
+        
+    def testTree2(self):
+        ns = [35, 36, 346, 3, 78, 334, 2, 23, 2, 2342, 235, 7745, 6585, 7562, 234]
+        self.assertEquals(sum(ns), psum_topdown(*[Int(n) for n in ns]).get())
                         
     #def testFunctionError(self):
     #    self.assertRaises(TypeError, double(Int(None)).get)
