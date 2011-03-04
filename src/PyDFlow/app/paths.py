@@ -9,6 +9,7 @@ mechanism.
 
 TODO: it is worth thinking about just using the OS's resolution mechanism and manipulating the
 PATH environment variable, but this is a bit ugly.
+@author: Tim Armstrong
 """
 from PyDFlow.util.args import is_iterable
 import os.path

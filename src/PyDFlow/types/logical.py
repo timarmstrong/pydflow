@@ -1,6 +1,7 @@
 """
 Implements the logical types of channels (ie the type of the data
 being passed through them)
+@author: Tim Armstrong
 """
 # Shorthand for the passthrough type
 _ = None

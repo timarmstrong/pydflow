@@ -10,6 +10,7 @@ prefixed with _ may be intended to be overridden
 
 A method or field without such a prefix is intended for external use, and will not
 assume that any locks are held.
+@author: Tim Armstrong
 """
 
 import logging

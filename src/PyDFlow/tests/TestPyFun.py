@@ -1,7 +1,5 @@
 '''
-Created on 19/02/2011
-
-@author: tim
+@author: Tim Armstrong
 '''
 import unittest
 import time
@@ -162,7 +160,7 @@ class TestPyFun(unittest.TestCase):
         MagicInt = Int.subtype()
         self.assertTrue(future.isinstance(MagicInt("hello")))
 
-    def testFib(self):
+    def testZZZFib(self):
         self.assertEquals(ex.fib(3).get(),2)
         self.assertEquals(ex.fib(49).get(),7778742049) 
         

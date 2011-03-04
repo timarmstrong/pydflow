@@ -5,6 +5,7 @@ Provided that it is accessed by the set and get methods,
 this enforces write-once semantics.
 
 TODO: implement a faster C version
+@author: Tim Armstrong
 '''
 import threading
 

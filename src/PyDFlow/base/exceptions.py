@@ -1,4 +1,6 @@
-
+'''
+@author: Tim Armstrong
+'''
 class UnimplementedException(Exception):
     def __init__(self, value):
         self.parameter = value

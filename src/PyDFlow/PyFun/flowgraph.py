@@ -1,4 +1,7 @@
 from __future__ import with_statement
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow.base.atomic import AtomicChannel, AtomicTask
 from PyDFlow.base.flowgraph import Unbound
 from PyDFlow.base.mutex import graph_mutex

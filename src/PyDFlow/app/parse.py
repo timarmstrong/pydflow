@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 import logging
 
 def parse_cmd_string(cmd_string, path_dict):

@@ -1,7 +1,5 @@
 '''
-Created on Mar 4, 2011
-
-@author: tga
+@author: Tim Armstrong
 '''
 
 from compound import CompoundTask, ChannelPlaceholder

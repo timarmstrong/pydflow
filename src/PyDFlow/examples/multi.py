@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow.app import *
 from PyDFlow.types import *
 

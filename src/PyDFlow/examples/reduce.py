@@ -1,5 +1,7 @@
 #!/usr/bin/python
-
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow import *
 from PyDFlow.PyFun import *
 import random

@@ -25,7 +25,7 @@ TODO: how do we handle mallocing.  The host thread must do the mallocing,
         CUDAChannel immediately before launching an asynchronous task
     - Some scheme where there is a separate mallocing queue
 
-
+@author: Tim Armstrong
 """
 
 class CUDAJob:

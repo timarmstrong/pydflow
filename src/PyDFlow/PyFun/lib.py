@@ -1,3 +1,7 @@
+'''
+@author: Tim Armstrong
+'''
+
 from random import Random
 from PyDFlow.PyFun import future
 import PyDFlow.base.rand as base

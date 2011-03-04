@@ -4,6 +4,7 @@ import inspect
 """
 Logic to define function input and output type signatures and to check
 lists of arguments against them.
+@author: Tim Armstrong
 """
 
 class Multiple(object):

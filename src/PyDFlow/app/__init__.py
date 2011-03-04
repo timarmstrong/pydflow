@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 import flowgraph
 from decorator import app
 from PyDFlow.compound import compound

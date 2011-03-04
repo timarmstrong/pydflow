@@ -1,8 +1,6 @@
 from __future__ import with_statement
 '''
-Created on Mar 4, 2011
-
-@author: tga
+@author: Tim Armstrong
 '''
 import logging
 

@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 #==============#
 # TASK STATES  #
 #==============#

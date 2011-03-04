@@ -1,4 +1,7 @@
 #!/usr/bin/python
+'''
+@author: Tim Armstrong
+'''
 import random
 import time
 import logging

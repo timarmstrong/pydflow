@@ -1,4 +1,6 @@
-
+'''
+@author: Tim Armstrong
+'''
 def is_indexable(var):
     try:
         var[0]

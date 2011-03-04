@@ -1,4 +1,7 @@
 #!/usr/bin/python
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow.app import *
 import logging
 import os.path

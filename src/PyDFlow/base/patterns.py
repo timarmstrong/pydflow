@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 import Queue
 from itertools import islice, imap, izip
 import logging

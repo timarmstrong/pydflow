@@ -1,7 +1,5 @@
 '''
-Created on Feb 23, 2011
-
-@author: tga
+@author: Tim Armstrong
 '''
 from threading import Lock
 graph_mutex = Lock()

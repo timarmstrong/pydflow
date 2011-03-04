@@ -1,4 +1,7 @@
 #!/usr/bin/python
+'''
+@author: Tim Armstrong
+'''
 import datetime
 from PyDFlow.PyFun import *
 from PyDFlow import *

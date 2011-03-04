@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow.base.decorators import task_decorator
 from flowgraph import AppTask
 

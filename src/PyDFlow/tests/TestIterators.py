@@ -1,7 +1,5 @@
 '''
-Created on 19/02/2011
-
-@author: tim
+@author: Tim Armstrong
 '''
 import unittest
 

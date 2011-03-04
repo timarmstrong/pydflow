@@ -14,6 +14,8 @@ Threads steal work from each other's deques.
 TODO:
 * Smarter thread pool - configurable/adaptive # of workers
 * Convert as much code as possible to C
+
+@author: Tim Armstrong
 """
 import threading
 import Queue

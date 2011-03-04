@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 from PyDFlow.types.check import InputSpec, TaskDescriptor
 import inspect
 from functools import wraps

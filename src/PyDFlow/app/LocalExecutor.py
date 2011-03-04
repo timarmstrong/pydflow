@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 from __future__ import with_statement
 """
 Refactoring plan:

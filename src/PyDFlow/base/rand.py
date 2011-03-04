@@ -1,3 +1,6 @@
+'''
+@author: Tim Armstrong
+'''
 from random import Random
 
 def gen(f, seed=None):
