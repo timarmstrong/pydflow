@@ -463,8 +463,12 @@ class WorkerThread(threading.Thread):
             
             logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_task))
             if dep_count == 0:
-                raise Exception(("Invalid task frame state %s, all inputs " +
-                                "were ready but state said otherwise ") %
+                if taskframe[0]._state == T_DATA_READY:
+                    # it is possible that the task became runnable if it was a compound
+                    found_runnable = True
+                else: 
+                    raise Exception(("Invalid task frame state %s, all inputs " +
+                                     "were ready but state said otherwise ") %
                                         repr(taskframe))
             else:
                 if next_task is not None:
