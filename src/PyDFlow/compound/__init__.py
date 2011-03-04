@@ -1,0 +1,1 @@
+from PyDFlow.compound.decorators import compound

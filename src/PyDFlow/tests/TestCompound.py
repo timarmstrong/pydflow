@@ -6,9 +6,7 @@ import unittest
 from PyDFlow.PyFun import future, func, compound
 from PyDFlow.base.states import *
 
-from itertools import islice
-
-from PyDFlow.types import Multiple, FlTypeError
+from PyDFlow.types import Multiple
 
 Int = future.subtype()
 
@@ -45,11 +43,12 @@ class Test(unittest.TestCase):
 
 
     def setUp(self):
-        pass
-
+        from stacktrace import trace_start
+        #trace_start("trace.html")
 
     def tearDown(self):
-        pass
+        from stacktrace import trace_stop
+        #trace_stop()
     
     def test1(self):
         Int(None).get()

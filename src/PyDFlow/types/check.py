@@ -6,7 +6,7 @@ Logic to define function input and output type signatures and to check
 lists of arguments against them.
 """
 
-class Multiple:
+class Multiple(object):
     """
     Represents the type of the remainder of arg types
     Ie. if the python function signature is:
@@ -17,6 +17,7 @@ class Multiple:
     """
     def __init__(self, internal):
         self.internal = internal
+
 
 class FlTypeError(ValueError):
     def __init__(self, *args, **kwargs):
@@ -55,6 +56,7 @@ class TaskDescriptor(object):
         """
         self.input_types = input_types
         self.output_types = output_types
+        self._output_wrapper = None
         
         rawspec = inspect.getargspec(wrapped)
         arg_names = rawspec[0]
@@ -101,11 +103,17 @@ class TaskDescriptor(object):
             raise FlTypeError("Output channel(s) of wrong type provided: %s"
                 % (repr(err)))
 
+    def set_output_wrapper(self, wrapper):
+        self._output_wrapper = wrapper
+
     def make_outputs(self):
         """
         Initialize a set of output channels with correct type.
         """
-        return [channel_cls() for channel_cls in self.output_types]
+        if self._output_wrapper is not None:
+            return [self._output_wrapper(channel_cls)() for channel_cls in self.output_types]
+        else:
+            return [channel_cls() for channel_cls in self.output_types]
     
     def input_count(self):
         return len(self.input_spec)
@@ -132,7 +140,7 @@ def check_logicaltype(thetype, var, name=None):
     if thetype is None:
         return var
     if isinstance(var, Placeholder):
-        if issubclass(var._expected_class, type):
+        if issubclass(var._expected_class, thetype):
             return var
         else:
             raise FlTypeError("Proxy has wrong expected class %s, not a subclass of %s" % (
@@ -220,6 +228,7 @@ def validate_swap(new_chans, old_chans):
         if not isinstance(new, old.__class__):
             raise FlTypeError(("new channel %s is not a subclass of the class of" +  
                 " old channel %s, cannot replace") % (repr(new), repr(old)))
+
 
 def spec_zip(input_spec, other):
     for i, spec in enumerate(input_spec):

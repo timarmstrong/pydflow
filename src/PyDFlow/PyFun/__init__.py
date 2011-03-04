@@ -1,5 +1,7 @@
-from decorators import func, compound
+from decorators import func
 import flowgraph
+from PyDFlow.compound import compound
+
 
 future = flowgraph.FutureChannel
 

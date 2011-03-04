@@ -301,8 +301,7 @@ class WorkerThread(threading.Thread):
         victim1 = -1
         thread_ids = range(NUM_THREADS - 1)
         random.shuffle(thread_ids)
-        # try each of the threads in turn in a round robin fashion
-        # TODO: randomise somewhat so we don't have bus pileup effect
+        # try each of the threads in a randomised order
         for victim in thread_ids:
             if victim >= self.worker_num:
                 victim += 1
@@ -422,6 +421,10 @@ class WorkerThread(threading.Thread):
                 elif ch._state == CH_ERROR:
                     fail_task(task, continuation, ch._exceptions)
                     continue
+                elif hasattr(ch, '_proxy_for'):
+                    ch._expand()
+                    deps[i] = ch._proxy_for
+                    ch = ch._proxy_for
                 elif first_iter and ch._readable():                          
                     # is ready.. don't do anything
                     logging.debug("%s became readable" % repr(ch))

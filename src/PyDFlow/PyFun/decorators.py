@@ -1,5 +1,5 @@
 from PyDFlow.base.decorators import task_decorator
-from flowgraph import FuncTask, CompoundTask
+from flowgraph import FuncTask
 
 class func(task_decorator):
     """
@@ -17,8 +17,3 @@ class func(task_decorator):
     def __init__(self, output_types, input_types):
         super(func, self).__init__(output_types, input_types)
         self.task_class = FuncTask
-
-class compound(task_decorator):
-    def __init__(self, output_types, input_types):
-        super(compound, self).__init__(output_types, input_types)
-        self.task_class = CompoundTask

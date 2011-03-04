@@ -66,7 +66,7 @@ class task_decorator(object):
         return wraps(function)(wrapped)
 
 
-class TaskWrapper:
+class TaskWrapper(object):
     def __init__(self, func, task_class, descriptor):
         self.func = func
         self.descriptor = descriptor
@@ -89,4 +89,5 @@ class TaskWrapper:
 
     def __repr__(self):
         return "<PyDFlow Function: %s>" % repr(self._taskname)
+
 

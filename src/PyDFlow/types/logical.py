@@ -36,4 +36,4 @@ class flvar(object):
 
 class Placeholder(object):
     def __init__(self, expected_class):
-        self.expected_class = expected_class
+        self._expected_class = expected_class
