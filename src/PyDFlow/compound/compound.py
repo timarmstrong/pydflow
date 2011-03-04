@@ -17,6 +17,7 @@ import threading
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
 from PyDFlow.types.check import FlTypeError
+import time
     
 class ChannelPlaceholder(Placeholder, Channel):
     """
@@ -58,18 +59,21 @@ class ChannelPlaceholder(Placeholder, Channel):
         """
         
         """
+        assert(id(self) != id(other))
         logging.debug("_replacewith %s %s" % (repr(self), repr(other)))
         if not self._proxy_for.isSet():
             self._proxy_for.set(other)
             #TODO: does thsi correctly update inputs, outputs?
             
-            for t in self._in_tasks:
-                t._output_replace(self, other)
-            # TODO: right?
-            other._in_tasks = self._in_tasks
+            #for t in self._in_tasks:
+            #    t._output_replace(self, other)
+            for out in self._out_tasks:
+                out._input_replace(self, other)
+            other._out_tasks = self._out_tasks 
         else:
-            self._check_real_channel()
-            self._proxy_for.get()._replacewith(other)
+            raise Exception("should not be here yet")
+            #self._check_real_channel()
+            #self._proxy_for.get()._replacewith(other)
             
     
     def get(self):
@@ -82,7 +86,11 @@ class ChannelPlaceholder(Placeholder, Channel):
         return next._future.get()
         
 
-    def _expand(self):
+    def _expand(self, rec=True):
+        """
+        If rec is true, expand until we hit a real channel
+        Otherwise just do it once 
+        """
         if not self._proxy_for.isSet():
             assert len(self._in_tasks) == 1
             in_task = self._in_tasks[0]
@@ -95,20 +103,29 @@ class ChannelPlaceholder(Placeholder, Channel):
                 graph_mutex.acquire()
             
             assert(self._proxy_for.isSet())
-            #self._proxy_for = in_task._outputs[own_ix]
-            logging.debug("expanded %s, new chan is %s" % (repr(self), repr(self._proxy_for.get())))
-            return self._proxy_for.get()
+            
+            if rec:
+                last = self
+                ch = self._proxy_for.get()
+                while isinstance(ch, ChannelPlaceholder):   
+                    last = ch
+                    ch = ch._expand(rec=False)
+                # shorten chain
+                self._proxy_for = last._proxy_for
+            logging.debug("expanded %s, now points to: %s" % (repr(self), repr(self._proxy_for.get())))
+            
         else:
             logging.debug("Proxy for %s" % repr(self._proxy_for))
+        return self._proxy_for.get()
 
     def _force(self, done_callback=None):
         # input task should be a compound task.
         #  make sure the compound task is expanded
         # TODO: less dreadful implementation
         self._expand()
+        
         next_chan = self._proxy_for.get()
         next_chan._force(done_callback)
-        self._check_real_channel()
         
         
     
@@ -117,8 +134,9 @@ class ChannelPlaceholder(Placeholder, Channel):
             return "<Placeholder for channel of type %s>" % repr(self._expected_class)
         else:
             logging.debug("%d %d" % (id(self), id(self._proxy_for.get())))
-            #raise Exception()
+            
             return repr(self._proxy_for.get())
+            return "<Placeholder for channel of type %s>" % repr(self._expected_class)
     def state(self):
         pass
         #TODO
@@ -172,7 +190,7 @@ class CompoundTask(AtomicTask):
             self._return_chans = return_chans
             for i, old, new in zip(range(len(self._outputs)), self._outputs, return_chans):
                 old._replacewith(new) 
-                self._outputs[i] = new
+                #self._outputs[i] = new
             
             
     def isSynchronous(self):

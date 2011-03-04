@@ -44,10 +44,10 @@ class Test(unittest.TestCase):
 
     def setUp(self):
         from stacktrace import trace_start
-        #import os
+        import os
         #try:
         #    os.remove("trace.html")
-        #except OSError:
+       # except OSError:
         #    pass
         #trace_start("trace.html")
 
@@ -74,6 +74,7 @@ class Test(unittest.TestCase):
         self.assertTrue(double(Int(10)).get(), 20) 
 
     def testTree(self):
+        
         ns = [35, 36, 346, 3, 78, 334, 2, 23, 2, 2342, 235, 7745, 6585, 7562, 234]
         self.assertEquals(sum(ns), psum(*[Int(n) for n in ns]).get())
                         

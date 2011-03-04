@@ -164,7 +164,14 @@ class Task(object):
         for i, o in enumerate(self._outputs):
             if o is old:
                 self._outputs[i] = new
-
+                
+    def _input_replace(self, old, new):
+        """
+        Swap out an old output channel with a new one.
+        """
+        for i, o in enumerate(self._inputs):
+            if o is old:
+                self._inputs[i] = new
 
 
     def _exec_async(self):
