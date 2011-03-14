@@ -103,13 +103,14 @@ def makeframe(channel, continuation):
     Make a deque frame from a task. Graph mutex should be held.
     """
     deps = []
-    for task in channel._in_tasks:
-        for spec, ch in task._input_iter():
-            if not spec.isRaw() and not ch._try_readable():
-                if ch._state == CH_ERROR:
-                    fail_task(task, continuation, ch._exceptions)
-                    return None
-                deps.append(ch)
+    if channel._in_tasks is not None:
+        for task in channel._in_tasks:
+            for spec, ch in task._input_iter():
+                if not spec.isRaw() and not ch._try_readable():
+                    if ch._state == CH_ERROR:
+                        fail_task(task, continuation, ch._exceptions)
+                        return None
+                    deps.append(ch)
     return (channel, deps, continuation)
 
 class WorkerThread(threading.Thread):
@@ -352,8 +353,21 @@ class WorkerThread(threading.Thread):
             logging.debug("expanded channel to %s " % repr(ch))
         frame = (ch, frame[1], frame[2])
         
-        #TODO: check channel state
+        chstate = ch._state
+        if chstate in (CH_DONE_FILLED, CH_OPEN_W, CH_OPEN_R, CH_OPEN_RW):
+            graph_mutex.release()
+            return
+        elif chstate == CH_ERROR:
+            # Exception should already be propagated, just return
+            graph_mutex.release()
+            return
+        elif chstate in (CH_CLOSED, CH_CLOSED_WAITING):
+            # Continue on to evaluate
+            pass
+        else:
+            raise Exception("Invalid channel state for %s" % repr(frame))
         
+        #TODO: check channel state
         assert(len(ch._in_tasks) == 1)
         task = ch._in_tasks[0]
         state = task._state
@@ -405,6 +419,11 @@ class WorkerThread(threading.Thread):
         while not found_runnable:
             dep_count = 0 # number of tasks that need to finish before this task can run
             ch, deps, continuation = taskframe
+            
+            #TODO: _in_task can be none: check channel state first
+            # ****************************
+            # ****************************
+            # ****************************
             assert(len(ch._in_tasks) == 1)
             task = ch._in_tasks[0]
             next_ch = None
@@ -431,6 +450,12 @@ class WorkerThread(threading.Thread):
                     logging.debug("%s became readable" % repr(ch))
                     deps[i] = None
                     continue
+                #TODO: _in_task can be none: check channel state first
+                # ****************************
+                # ****************************
+                # ****************************
+                # ****************************
+                
                 # Next task to look at
                 assert(len(ch._in_tasks) == 1)
                 in_t = ch._in_tasks[0]
@@ -637,6 +662,7 @@ def resume_continuation(cont):
             
 def resume_taskframe(taskframe):
     with idle_worker_cvar:
+        logging.debug("Put %s on resume queue" % repr(taskframe))
         resume_queue.put(taskframe)
         idle_worker_cvar.notifyAll()
             
