@@ -122,6 +122,7 @@ class FileChannel(AtomicChannel):
 
 class LocalFileChannel(FileChannel):
     def __init__(self, *args, **kwargs):
+        #TODO: expand bound path
         super(LocalFileChannel, self).__init__(*args, **kwargs)
 
     def open(self):

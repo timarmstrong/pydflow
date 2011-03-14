@@ -85,7 +85,7 @@ class ChannelPlaceholder(Placeholder, Channel):
             self._check_real_channel()
             next = self._proxy_for.get()
         #TODO: this is a bit hacky...
-        return next._future.get()
+        return next.get()
         
 
     def _expand(self, rec=True):

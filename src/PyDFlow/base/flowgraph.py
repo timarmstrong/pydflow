@@ -179,26 +179,6 @@ class Task(object):
                     
                 
 
-
-    def _exec_async(self):
-        """
-        Add to work queue.
-        Guarantees that this task will be run at some point in the
-        future.
-        """
-        logging.debug("_exec_async task %s" % repr(self))
-        if self._state in (T_DONE_SUCCESS, T_QUEUED, T_RUNNING, T_DATA_WAIT):
-            # Already enqueued
-            return
-        elif self._state == T_DATA_READY:
-            LocalExecutor.exec_async(self)
-        elif self._state == T_INACTIVE:
-            self._state = T_DATA_WAIT
-            LocalExecutor.exec_async(self)
-        elif self._state == T_ERROR:
-            raise Exception("Forcing task which had a previous error")
-        else:
-            raise Exception("Invalid state %d" % self.state)
     
     def isSynchronous(self):
         raise UnimplementedException("isSynchronous not implemented")

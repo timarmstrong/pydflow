@@ -47,7 +47,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 4
+NUM_THREADS = 1
 
 workers = []
 # These deques store the work remaining to be done
@@ -76,15 +76,15 @@ def init():
 # Use future to ensure init() run exactly once
 initFuture = Future(function=init)
 
-def exec_async(task):
+def exec_async(channel):
     """
-    Takes a task and executes it at some point in the future
+    Takes a channel and fills it at some point in the future
     """
     # Ensure workers are initialized
     logging.debug("Entered exec_async")
     initFuture.get()
-    logging.debug("Added task to work queue")
-    in_queue.put(task)
+    logging.debug("Added channel to work queue")
+    in_queue.put(channel)
     with idle_worker_cvar:
         idle_worker_cvar.notifyAll()
 
@@ -98,18 +98,19 @@ def fail_task(task, continuation, exceptions):
         for t in continuation:
             t._fail(exceptions)
 
-def makeframe(task, continuation):
+def makeframe(channel, continuation):
     """
-    Make a task frame from a task. Graph mutex should be held.
+    Make a deque frame from a task. Graph mutex should be held.
     """
     deps = []
-    for spec, ch in task._input_iter():
-        if not spec.isRaw() and not ch._try_readable():
-            if ch._state == CH_ERROR:
-                fail_task(task, continuation, ch._exceptions)
-                return None
-            deps.append(ch)
-    return (task, deps, continuation)
+    for task in channel._in_tasks:
+        for spec, ch in task._input_iter():
+            if not spec.isRaw() and not ch._try_readable():
+                if ch._state == CH_ERROR:
+                    fail_task(task, continuation, ch._exceptions)
+                    return None
+                deps.append(ch)
+    return (channel, deps, continuation)
 
 class WorkerThread(threading.Thread):
     """ 
@@ -120,19 +121,19 @@ class WorkerThread(threading.Thread):
     work-stealing.  It contains suspended tasks that are candidates for workstealing.
     
     Each internal element has the following structure:
-        (task_that_needs_running, dependency_list, continuation_list)
-        task_that_needs_running: a Task object which has been suspended due to dependencies
-        dependency_list: a list of input channels to the task which need to be filled
+        (channel_that_needs_filling, dependency_list, continuation_list)
+        channel_that_needs_filling: a channel object which has been suspended due to dependencies
+        dependency_list: a list of input channels which need to be filled in order to allow
+                    task to run to file the above channel
                     each entry is replaced by None when finished.
         continuation_list: a sequence of tasks that can be run from last-to-first once
-                the main task finishes
+                the channel is filled
     """
     def __init__(self, in_queue, resume_queue, worker_num, work_deque):
         threading.Thread.__init__(self, name=("%s_%d" % (PYFUN_THREAD_NAME, worker_num)))
         self.in_queue = in_queue
         self.resume_queue = resume_queue
         
-        # TODO: change logic to expect lists of tasks in deque
         self.deque = work_deque
         self.worker_num = worker_num
         self.setDaemon(True) # Ensure threads will exit with application
@@ -176,18 +177,23 @@ class WorkerThread(threading.Thread):
             # If there was no work, see if we can establish consensus 
             # among threads that there is no work to do
             #logging.debug("%s trying to go idle, found no work" % self.getName())
-            taskframe = self.try_idle()
-            if taskframe is not None:
-                self.eval_taskframe(taskframe)
+            frame = self.try_idle()
+            if frame is not None:
+                self.eval_frame(frame)
             
-    def exec_task(self, taskframe):
+    def exec_task(self, frame):
         """
         Start the task running.
         """
-        task = taskframe[0]
-        contstack = taskframe[2]
+        chan = frame[0]
+        # assume for now <= 1, can revisit assumption later
+        # It shuoldn't be 0, because we shouldn't be executing
+        # task if it gets to that point
+        assert(len(chan._in_tasks) == 1) 
+        task = chan._in_tasks[0]
+        contstack = frame[2]
         logging.debug("%s starting task" % self.getName())
-                    
+    
         task.set_state(T_QUEUED)
         #TODO: what if continuation called before exception
         if task.isSynchronous():
@@ -219,10 +225,10 @@ class WorkerThread(threading.Thread):
             
     def run_from_deque(self):
         try:
-            taskframe = self.deque.pop()
-            if taskframe is ReturnMarker:
+            frame = self.deque.pop()
+            if frame is ReturnMarker:
                 return False
-            self.eval_taskframe(taskframe)
+            self.eval_frame(frame)
             return True
         except IndexError:
             logging.debug("Thread %s - nothing in Deque" % (self.getName()))
@@ -239,16 +245,16 @@ class WorkerThread(threading.Thread):
             
             queue.task_done()
             if frame:
-                taskframe = item
+                frame = item
             else:
                 with graph_mutex:
                     # Build the taskframe: the task and all of its unresolved
                     # dependencies
-                    taskframe = makeframe(item, [])
+                    frame = makeframe(item, [])
             
-            logging.debug("Got %s from queue" % repr(taskframe))
-            if taskframe is not None:
-                self.eval_taskframe(taskframe)
+            logging.debug("Got %s from queue" % repr(frame))
+            if frame is not None:
+                self.eval_frame(frame)
             # If there was an error processing an input, just return
             # to let error propagate 
             return True
@@ -273,23 +279,24 @@ class WorkerThread(threading.Thread):
                 # something from queue, if there is
                 # genuinely nothing there, block on
                 # condition
-                taskframe = None
-                try:
-                    taskframe = self.resume_queue.get(False)
-                except Queue.Empty:
-                    pass
-                if taskframe is None:
-                    try:
-                        task = self.in_queue.get(False)
-                        taskframe = makeframe(task, [])
-                    except Queue.Empty:
-                        pass
-                # got a task: wake up all
-                if taskframe is not None:
+                frame = None
+                if self.run_from_queue(self.resume_queue, False, None, frame=True):
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
-                    return taskframe
+                    return
+                
+                if self.run_from_queue(self.in_queue, False, None, frame=False):
+                    self.idle = False
+                    idle_worker_count = 0
+                    idle_worker_cvar.notifyAll()
+                    return
+                # got a task: wake up all
+                if frame is not None:
+                    self.idle = False
+                    idle_worker_count = 0
+                    idle_worker_cvar.notifyAll()
+                    return frame
                 idle_worker_cvar.wait()
         self.idle = False
         return None
@@ -308,14 +315,14 @@ class WorkerThread(threading.Thread):
             if victim >= self.worker_num:
                 victim += 1
             try:
-                taskframe = work_deques[victim].popleft()
-                while taskframe is ReturnMarker:
-                    taskframe = work_deques[victim].popleft()
+                frame = work_deques[victim].popleft()
+                while frame is ReturnMarker:
+                    frame = work_deques[victim].popleft()
                 # Run and then go back to normal loop
-                #print ("Thread %s stole task %s" % (self.getName(), repr(taskframe[0])))
-                logging.debug("Thread %s stole task %s from thread #%d" % (
-                            self.getName(), repr(taskframe[0]), victim))
-                self.eval_taskframe(taskframe)
+                #print ("Thread %s stole task %s" % (self.getName(), repr(frame[0])))
+                logging.debug("Thread %s stole frame %s from thread #%d" % (
+                            self.getName(), repr(frame), victim))
+                self.eval_frame(frame)
                 return True
             except IndexError:
                 pass
@@ -323,55 +330,45 @@ class WorkerThread(threading.Thread):
             if victim1 < 0:
                 victim1 = victim
             victim = (victim + 1) % NUM_THREADS
-        logging.debug("Thread %s couldn't find task to steal" % (self.getName()))
+        logging.debug("Thread %s couldn't find work to steal" % (self.getName()))
         return False
             
-    def eval_taskframe(self, taskframe):
+    def eval_frame(self, frame):
         """
-        taskframe is: (task, 
-                [channel dependencies which may not have been picked by an evaluator])
+        frame is: (channel, 
+                [channel dependencies which may not have been picked by an evaluator],
+                [list of tasks to run following immediately])
          If ready to run, this thread runs the task
          If not, it searches the graph until it finds a runnable task, adding branches to the deque. 
         """        
     
-        #TODO: locking, I don't think we can assume exclusive access
-        logging.debug("%s: looking at task frame %s " % (self.getName(), repr(taskframe)))
-        """
-        while hasattr(taskframe[0], "_compound"):
-            self.exec_task(taskframe)
-            # TODO: this is hacky
-            with graph_mutex:
-                chs = taskframe[0]._return_chans
-                new_tasks = []
-                for ch in chs:
-                    # TODO: other states?
-                    if ch._state == CH_CLOSED_WAITING:
-                        for t in ch._in_tasks:
-                            new_tasks.append(t)
-            if len(new_tasks) == 0:
-                return
-            else:
-                new_frame = None
-                for t in new_tasks:
-                    if new_frame is not None:
-                        self.deque.append(new_frame)
-                    new_frame = makeframe(t, taskframe[2])
-                taskframe = new_frame
-        """
-        task = taskframe[0]
+        logging.debug("%s: looking at frame %s " % (self.getName(), repr(frame)))
+        ch = frame[0]
+                
         graph_mutex.acquire()
+        # Expand the channel as needed
+        while hasattr(ch, '_proxy_for'):
+            ch = ch._expand()
+            logging.debug("expanded channel to %s " % repr(ch))
+        frame = (ch, frame[1], frame[2])
+        
+        #TODO: check channel state
+        
+        assert(len(ch._in_tasks) == 1)
+        task = ch._in_tasks[0]
         state = task._state
         if state in (T_DATA_READY, T_QUEUED):
             graph_mutex.release()
             #  All dependencies satisfied
-            self.exec_task(taskframe)
+            self.exec_task(frame)
         elif state in (T_DONE_SUCCESS, T_RUNNING):
             # already started elsewhere
             graph_mutex.release()
             return
-        elif state == T_DATA_WAIT:
+        elif state in (T_DATA_WAIT, T_INACTIVE):
+            task._state = T_DATA_WAIT
             try:
-                runnable_frame = self.find_runnable_task(taskframe)
+                runnable_frame = self.find_runnable_task(frame)
             finally:
                 graph_mutex.release()
             if runnable_frame is not None:
@@ -381,9 +378,6 @@ class WorkerThread(threading.Thread):
             # Exception should already be propagated, just return
             graph_mutex.release()
             return
-        elif state == T_INACTIVE:
-            graph_mutex.release()             
-            raise Exception("Tried to execute task %s with inactive state, should not be possible" % repr(task))
         else:
             graph_mutex.release()
             raise Exception("Task %s has invalid state %d" % ((repr(task), state)))
@@ -410,8 +404,10 @@ class WorkerThread(threading.Thread):
         
         while not found_runnable:
             dep_count = 0 # number of tasks that need to finish before this task can run
-            task, deps, continuation = taskframe
-            next_task = None
+            ch, deps, continuation = taskframe
+            assert(len(ch._in_tasks) == 1)
+            task = ch._in_tasks[0]
+            next_ch = None
             
             # Looks at inputs that might not yet be ready
             for i, ch in enumerate(deps):
@@ -425,6 +421,8 @@ class WorkerThread(threading.Thread):
                     continue
                 elif hasattr(ch, '_proxy_for'):
                     ch = ch._expand()
+                    while hasattr(ch, '_proxy_for'):
+                        ch = ch._expand()
                     logging.debug("expanded channel to %s " % repr(ch))
                     deps[i] = ch
                     
@@ -434,38 +432,39 @@ class WorkerThread(threading.Thread):
                     deps[i] = None
                     continue
                 # Next task to look at
-                for in_t in ch._in_tasks:
-                    state = in_t._state
-                    logging.debug("%s, %s" % (repr(ch), repr(in_t)))
-                    if state == T_INACTIVE:
-                        # We will recurse on this one
-                        if next_task is None:
-                            # do dfs on this task to run dependencies
-                            in_t._state = T_DATA_WAIT
-                            next_task = in_t
-                        dep_count += 1
-                    elif state == T_DATA_READY:
-                        # This task could be run now
-                        if next_task is None:
-                            in_t._state = T_QUEUED
-                            logging.debug("selected %s to run for thread %s" % 
-                                      (repr(in_t), self.getName()))
-                            next_task = in_t
-                            found_runnable = True
-                        dep_count += 1
-                    elif state == T_DONE_SUCCESS:
-                        pass
-                    elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED):
-                        # Will be filled with data at some point by another executor
-                        # but we do need to wait for it to finish
-                        dep_count += 1
-                    else:
-                        raise Exception("Invalid task state for %s" %
-                                        (repr(taskframe)))
+                assert(len(ch._in_tasks) == 1)
+                in_t = ch._in_tasks[0]
+                state = in_t._state
+                logging.debug("%s, %s" % (repr(ch), repr(in_t)))
+                if state == T_INACTIVE:
+                    # We will recurse on this one
+                    if next_ch is None:
+                        # do dfs on this task to run dependencies
+                        in_t._state = T_DATA_WAIT
+                        next_ch = ch
+                    dep_count += 1
+                elif state == T_DATA_READY:
+                    # This task could be run now
+                    if next_ch is None:
+                        in_t._state = T_QUEUED
+                        logging.debug("selected %s to run for thread %s" % 
+                                  (repr(in_t), self.getName()))
+                        next_ch = ch
+                        found_runnable = True
+                    dep_count += 1
+                elif state == T_DONE_SUCCESS:
+                    pass
+                elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED):
+                    # Will be filled with data at some point by another executor
+                    # but we do need to wait for it to finish
+                    dep_count += 1
+                else:
+                    raise Exception("Invalid task state for %s" %
+                                    (repr(taskframe)))
             
-            logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_task))
+            logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_ch))
             if dep_count == 0:
-                if taskframe[0]._state == T_DATA_READY:
+                if task._state == T_DATA_READY:
                     # it is possible that the task became runnable if it was a compound
                     found_runnable = True
                 else: 
@@ -473,7 +472,7 @@ class WorkerThread(threading.Thread):
                                      "were ready but state said otherwise ") %
                                         repr(taskframe))
             else:
-                if next_task is not None:
+                if next_ch is not None:
                     # need to wait for at least one thing
                     if dep_count == 1:
                         # Only depends on the next task we recurse on,
@@ -488,10 +487,10 @@ class WorkerThread(threading.Thread):
                         # fresh frame with new task
                         continuation = []
                     # build the frame for the next iteration 
-                    taskframe = makeframe(next_task, continuation)
+                    taskframe = makeframe(next_ch, continuation)
                     
                     # as part of making frame, task state can change
-                    if next_task._state == T_DATA_READY:
+                    if next_ch._state == T_DATA_READY:
                         found_runnable = True
                 else:
                     # All dependencies already being executed, so need to suspend
@@ -554,23 +553,23 @@ def force_recursive(channel):
         raise Exception("Non-worker thread running force_recursive")
      
     
-    # the task to run
-    to_run = []
-    for task in channel._in_tasks:
-        state = task._state
-        if state in (T_DATA_READY, T_DATA_WAIT, T_INACTIVE):
-            to_run.append(makeframe(task, []))
-        elif state in (T_QUEUED, T_RUNNING, T_DONE_SUCCESS):
-            pass
-        elif state == T_ERROR:
-            # exception needs to percolate up to next task running 
-            raise Exception("%s encountered an error in recursive invocation" % 
-                                                                    repr(task))
-        else:
-            raise Exception("%s had invalid state" % repr(task))
+    #assert(len(channel._in_tasks) == 1)
+    #task = channel._in_tasks[0]
+    state = channel._state
+    if state in (CH_CLOSED, CH_DONE_DESTROYED):
+        frame = makeframe(channel, [])
+        must_run = True
+    elif state in (CH_CLOSED_WAITING, CH_DONE_FILLED, CH_OPEN_RW, CH_OPEN_W):
+        must_run = False
+    elif state == CH_ERROR:
+        # exception needs to percolate up to next task running 
+        raise Exception("%s encountered an error in recursive invocation" % 
+                                                                repr(channel))
+    else:
+        raise Exception("%s had invalid state" % repr(channel))
     
 
-    if len(to_run) == 0:
+    if not must_run:
         # No work to do, return
         return
     else: 
@@ -578,7 +577,7 @@ def force_recursive(channel):
         # start executing old tasks
         thread.deque.append(ReturnMarker)
         #thread.deque.extend(to_run)
-        thread.deque.extend(to_run)
+        thread.deque.append(frame)
         graph_mutex.release()
         try:
             thread.run(recursive=True)

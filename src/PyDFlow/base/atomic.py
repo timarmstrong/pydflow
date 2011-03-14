@@ -279,8 +279,7 @@ class AtomicChannel(Channel):
                 # Enable task to be run, but
                 # input tasks should be run first
                 self._state = CH_CLOSED_WAITING
-                for f in self._in_tasks:
-                    f._exec_async()
+                LocalExecutor.exec_async(self)
             else:
                 # Nowhere for data to come from
                 #TODO: exception type
