@@ -159,13 +159,17 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to resume" % self.getName())
             # Try to get a frame from the resume queue
-            if self.run_from_queue(self.resume_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(), frame=True):
+            frame = self.get_from_queue(self.resume_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(), frame=True)
+            if frame is not None:
+                self.eval_frame(frame)
                 logging.debug("%s ran from resume" % self.getName())
                 continue
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            if self.run_from_queue(self.in_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(),frame=False):
+            frame = self.get_from_queue(self.in_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(),frame=False)
+            if frame is not None:
+                self.eval_frame(frame)
                 logging.debug("%s ran from new work queue" % self.getName())
                 continue 
             
@@ -198,7 +202,7 @@ class WorkerThread(threading.Thread):
         assert(task._state == T_QUEUED)
         #TODO: what if continuation called before exception
         if task.isSynchronous():
-            callback = DoneContinuation()
+            callback = lambda task, return_val: done_continuation(task, return_val, None)
             
             try:
                 task._exec(callback)
@@ -222,7 +226,7 @@ class WorkerThread(threading.Thread):
                         fail_task(nexttask, [], [error])
         else:
             try:
-                task._exec(DoneContinuation(contstack))
+                task._exec(done_continuation, contstack)
             except Exception, e:
                 fail_task(task, contstack, [e])
             
@@ -238,7 +242,7 @@ class WorkerThread(threading.Thread):
             return False
         
     
-    def run_from_queue(self, queue, block, timeout, frame):
+    def get_from_queue(self, queue, block, timeout, frame):
         """
         Trys to get some new work from the queue provided
         Returns True if found, false otherwise
@@ -256,14 +260,13 @@ class WorkerThread(threading.Thread):
                     frame = makeframe(item, [])
             
             logging.debug("Got %s from queue" % repr(frame))
-            if frame is not None:
-                self.eval_frame(frame)
-            # If there was an error processing an input, just return
+            # Note: makeframe could have returned none if there was an error
+            # processing the input... we just need to return None
             # to let error propagate 
-            return True
+            return frame
         except Queue.Empty:
             logging.debug("Thread %s queue timeout" % (self.getName()))
-            return False
+            return None
         
     def try_idle(self):
         """
@@ -272,6 +275,7 @@ class WorkerThread(threading.Thread):
         that there is no work.
         """
         global idle_worker_count, idle_worker_cvar
+        frame = None
         with idle_worker_cvar:
             if not self.idle:
                 self.idle = True
@@ -282,27 +286,26 @@ class WorkerThread(threading.Thread):
                 # something from queue, if there is
                 # genuinely nothing there, block on
                 # condition
-                frame = None
-                if self.run_from_queue(self.resume_queue, False, None, frame=True):
+                
+                frame = self.get_from_queue(self.resume_queue, False, None, frame=True)
+                if frame is not None:
+                    # got a task: wake up all
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
                     return
                 
-                if self.run_from_queue(self.in_queue, False, None, frame=False):
-                    self.idle = False
-                    idle_worker_count = 0
-                    idle_worker_cvar.notifyAll()
-                    return
-                # got a task: wake up all
+                frame = self.get_from_queue(self.in_queue, False, None, frame=False)
                 if frame is not None:
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
-                    return frame
+                    return
+                
                 idle_worker_cvar.wait()
         self.idle = False
-        return None
+        if frame is not None:
+            self.eval_frame(frame)
     
     def steal_work(self):
         """
@@ -615,55 +618,42 @@ def force_recursive(channel):
             graph_mutex.acquire()
 
 
-class DoneContinuation:
-    def __init__(self, contstack=None):
-        if contstack is None or len(contstack) == 0:
-            self.contstack = None
-        else:
-            self.contstack = contstack
-        
-        
-    def __call__(self, task, return_val):
-        """
-        FOr now, assume mutex is held by caller
-        """
-        logging.debug("%s finished" % repr(task))
-        if return_val is None:
-            task._state = T_ERROR
-            #TODO: exception type
-            raise Exception("Got None return value")
-        
-        # Fill in all the output channels
-        if len(task._outputs) == 1:
-            # Update current state, then pass data to channels
-            task._state = T_DONE_SUCCESS
-            task._outputs[0]._set(return_val)
-        else:
-            try:  
-                return_vals = tuple(return_val)
-            except TypeError:
-                #TODO: exception types
-                task._state = T_ERROR
-                raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
-            if len(return_vals) != len(task._outputs):
-                task._state = T_ERROR
-                raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
+def done_continuation(task, return_val, contstack):
+    """
+    FOr now, assume mutex is held by caller
+    """
+    logging.debug("%s finished" % repr(task))
+    if return_val is None:
+        task._state = T_ERROR
+        #TODO: exception type
+        raise Exception("Got None return value")
     
-            # Update current state, then pass data to channels
-            task._state = T_DONE_SUCCESS
-            for val, chan in zip(return_vals, task._outputs) :
-                chan._set(val)
-        if self.contstack is not None:
-            resume_continuation(self.contstack)
+    # Fill in all the output channels
+    if len(task._outputs) == 1:
+        # Update current state, then pass data to channels
+        task._state = T_DONE_SUCCESS
+        task._outputs[0]._set(return_val)
+    else:
+        try:  
+            return_vals = tuple(return_val)
+        except TypeError:
+            #TODO: exception types
+            task._state = T_ERROR
+            raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
+        if len(return_vals) != len(task._outputs):
+            task._state = T_ERROR
+            raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
 
-def resume_continuation(cont):
-    """
-    TODO: add to queue
-    """
-    if cont is not None and len(cont) > 0:
+        # Update current state, then pass data to channels
+        task._state = T_DONE_SUCCESS
+        for val, chan in zip(return_vals, task._outputs) :
+            chan._set(val)
+    if contstack is not None and len(contstack) > 0:
+        contstack[0]._state = T_DATA_READY # revert from T_QUEUED
         with idle_worker_cvar:
-            resume_queue.put((cont[0], None, cont[1:]))
+            resume_queue.put((contstack[0]._outputs[0], None, contstack[1:]))
             idle_worker_cvar.notifyAll()
+
             
 def resume_taskframe(taskframe):
     with idle_worker_cvar:

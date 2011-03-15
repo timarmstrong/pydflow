@@ -8,9 +8,20 @@ import os.path
 import os
 import time
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 testdir = os.path.dirname(__file__)
 app_paths.add_path(os.path.join(testdir, "apps"))
 
+
+@app((localfile), (None))
+def write(str):
+    return "myecho @output_0 '%s'" % str
+
+@app((localfile), (localfile))
+def cp(src):
+    return "cp @src @output_0"
 class Test(unittest.TestCase):
 
 
@@ -26,9 +37,7 @@ class Test(unittest.TestCase):
         """
         Test a global utility
         """
-        @app((localfile), (localfile))
-        def cp(src):
-            return "cp @src @output_0"
+
         hw = localfile(os.path.join(testdir, "files/helloworld"))
         x = cp(hw)
         #TODO: for some reason this is a list.
@@ -37,9 +46,6 @@ class Test(unittest.TestCase):
         self.assertEquals(x.open().readlines(), ["hello world!"])
     
     def testUtil(self):
-        @app((localfile), (None))
-        def write(str):
-            return "myecho @output_0 '%s'" % str
         # Write to a temporary file
         x = write("blah\nblah")
         self.assertEquals(x.open().readlines(), ['blah\n', 'blah\n'])
@@ -98,11 +104,48 @@ class Test(unittest.TestCase):
             self.assertEquals(len(results), NUM_FILES*NO_PER_FILE)
             for i in xrange(len(results) - 1):
                 self.assertTrue(results[i] <= results[i+1])
-            #NOTE TO SELF: THIS IS FAILING TO CORRECTLY RESUME TASKSs
         finally:
             for f in files:
-                os.remove(f)    
-       
+                os.remove(f) 
+                   
+    def testSimpleMapper(self):
+        import glob
+        for g in glob.glob("testSimpleMapper*.txt"):
+            os.remove(g)
+        
+        mp = SimpleMapper(localfile, "testSimpleMapper_", ".txt")
+        
+        mp[1] <<= write("hello world1")
+        mp[4] <<= write("hello world4")
+        mp.dog <<= write("hello dog")
+        mp.cat <<= write("hello cat")
+        
+        for f in mp:
+            f.get()
+            
+        self.assertEquals(open("testSimpleMapper_1.txt").readlines(),
+                          ["hello world1\n"])
+        self.assertEquals(open("testSimpleMapper_4.txt").readlines(),
+                          ["hello world4\n"])
+        self.assertEquals(open("testSimpleMapper_dog.txt").readlines(),
+                          ["hello dog\n"])
+        self.assertEquals(open("testSimpleMapper_cat.txt").readlines(),
+                          ["hello cat\n"])
+        
+    def testSimpleMapper2(self):
+        import glob
+        for g in glob.glob("testSimpleMapper*.txt"):
+            os.remove(g)
+        
+        mp = SimpleMapper(localfile, "testSimpleMapper_", ".txt")
+        out = localfile("out.txt")
+        out <<= cp(mp[1])
+        
+        mp[1] <<= write("hello world1")
+    
+        self.assertEquals(out.open().readlines(),
+                          ["hello world1\n"])
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

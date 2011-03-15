@@ -107,11 +107,12 @@ class MonitorThread(threading.Thread):
 
 
 class AppQueueEntry(object):
-    def __init__(self, task, continuation):
+    def __init__(self, task, continuation, contstack):
         """
         Std*_file should all be file paths
         """
         self.continuation = continuation
+        self.contstack = contstack
         self.task = task
         self.process = None
         self.exit_code = None
@@ -160,15 +161,23 @@ class AppQueueEntry(object):
     def do_callback(self):
         if self.process is None:
             raise Exception("Process has not yet been run, can't callback")
+        #handle_cont = (self.contstack is not None and len(self.contstack) > 0  
+        #        and self.contstack[0].__class__.__name__ == "AppTask") #TODO: temporary hack
+        handle_cont = False
         with graph_mutex:
             if len(self.task._outputs) == 1:
                 retval = self.task._outputs[0]._bound
             else: 
                 retval = [ch._bound for ch in self.task._outputs]
-            self.continuation(self.task, retval)
+            if handle_cont:
+                self.continuation(self.task, retval, None) # Handle own contstack
+            else:
+                self.continuation(self.task, retval, self.contstack) # Handle own contstack
+        if handle_cont:
+            launch_app(self.contstack[0], self.continuation, self.contstack[1:])
 
 
-def launch_app(task, continuation):
+def launch_app(task, continuation, contstack):
     """
     Launch a process using Popen, with cmd_args
     
@@ -181,7 +190,7 @@ def launch_app(task, continuation):
     """
     ensure_init()
     logging.debug("Added app %s to work queue" % repr(task))
-    entry = AppQueueEntry(task, continuation)
+    entry = AppQueueEntry(task, continuation, contstack)
     work_added.acquire()
     work_queue.put(entry)
     work_added.notify()

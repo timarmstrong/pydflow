@@ -178,7 +178,7 @@ class AppTask(AtomicTask):
         self._input_data = None
         self._in_exec_queue = False
     
-    def _exec(self, continuation):
+    def _exec(self, continuation, contstack):
         
         # Lock while we gather up the input and output channels
         logging.debug("Gathering input values for %s" % repr(self))
@@ -198,7 +198,7 @@ class AppTask(AtomicTask):
         logging.debug("Starting an AppTask")
         
         # Launch the executable using backend module, attach a callback
-        localexec.launch_app(self, continuation)
+        localexec.launch_app(self, continuation, contstack)
     
     def isSynchronous(self):
         return False
