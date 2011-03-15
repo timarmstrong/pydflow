@@ -47,7 +47,7 @@ resume_queue = None
 # ===========================================#
 
 #NUM_THREADS = 8
-NUM_THREADS = 1
+NUM_THREADS = 4
 
 workers = []
 # These deques store the work remaining to be done
@@ -184,7 +184,7 @@ class WorkerThread(threading.Thread):
             
     def exec_task(self, frame):
         """
-        Start the task running.
+        Start the task running.  State should eb set to T_QUEUED
         """
         chan = frame[0]
         # assume for now <= 1, can revisit assumption later
@@ -193,9 +193,9 @@ class WorkerThread(threading.Thread):
         assert(len(chan._in_tasks) == 1) 
         task = chan._in_tasks[0]
         contstack = frame[2]
-        logging.debug("%s starting task" % self.getName())
-    
-        task.set_state(T_QUEUED)
+
+        logging.debug("%s starting task %s" % (self.getName(), repr(task)))
+        assert(task._state == T_QUEUED)
         #TODO: what if continuation called before exception
         if task.isSynchronous():
             callback = DoneContinuation()
@@ -211,7 +211,9 @@ class WorkerThread(threading.Thread):
             if contstack is not None:
                 for nexttask in reversed(contstack):
                     if error is None:
-                        nexttask.set_state(T_QUEUED)
+                        #with graph_mutex:
+                            #if nexttask._state
+                            #nexttask 
                         try:
                             nexttask._exec(callback)
                         except Exception, e:
@@ -371,11 +373,12 @@ class WorkerThread(threading.Thread):
         assert(len(ch._in_tasks) == 1)
         task = ch._in_tasks[0]
         state = task._state
-        if state in (T_DATA_READY, T_QUEUED):
+        if state == T_DATA_READY:
+            task._state = T_QUEUED
             graph_mutex.release()
             #  All dependencies satisfied
             self.exec_task(frame)
-        elif state in (T_DONE_SUCCESS, T_RUNNING):
+        elif state in (T_DONE_SUCCESS, T_RUNNING, T_QUEUED):
             # already started elsewhere
             graph_mutex.release()
             return
@@ -383,6 +386,9 @@ class WorkerThread(threading.Thread):
             task._state = T_DATA_WAIT
             try:
                 runnable_frame = self.find_runnable_task(frame)
+                if runnable_frame is not None:
+                    assert(len(runnable_frame[0]._in_tasks) == 1) 
+                    runnable_frame[0]._in_tasks[0]._state = T_QUEUED
             finally:
                 graph_mutex.release()
             if runnable_frame is not None:
@@ -410,7 +416,9 @@ class WorkerThread(threading.Thread):
         
         It gathers all of the tasks which have only a single dependency.
         
-        Returns a runnable task
+        Returns a task frame with a channel with input task state T_DATA_READY, and continuation
+        with all tasks set to T_QUEUED
+        or None if nothing to run
         """
         logging.debug("%s: find_runnable_task" % (self.getName()))
         found_runnable = False
@@ -420,10 +428,7 @@ class WorkerThread(threading.Thread):
             dep_count = 0 # number of tasks that need to finish before this task can run
             ch, deps, continuation = taskframe
             
-            #TODO: _in_task can be none: check channel state first
-            # ****************************
-            # ****************************
-            # ****************************
+            # Shouldn't get here unless channel has input tasks
             assert(len(ch._in_tasks) == 1)
             task = ch._in_tasks[0]
             next_ch = None
@@ -444,23 +449,23 @@ class WorkerThread(threading.Thread):
                         ch = ch._expand()
                     logging.debug("expanded channel to %s " % repr(ch))
                     deps[i] = ch
-                    
-                elif first_iter and ch._readable():                          
+                # Recheck state
+                if ch._readable():                          
                     # is ready.. don't do anything
                     logging.debug("%s became readable" % repr(ch))
                     deps[i] = None
                     continue
-                #TODO: _in_task can be none: check channel state first
-                # ****************************
-                # ****************************
-                # ****************************
-                # ****************************
+                elif ch._state == CH_ERROR:
+                    fail_task(task, continuation, ch._exceptions)
+                    continue
+                elif ch._state == CH_CLOSED:
+                    ch._state = CH_CLOSED_WAITING 
                 
                 # Next task to look at
+                logging.debug("%s, %s" % (repr(ch), repr(ch._in_tasks)))
                 assert(len(ch._in_tasks) == 1)
                 in_t = ch._in_tasks[0]
                 state = in_t._state
-                logging.debug("%s, %s" % (repr(ch), repr(in_t)))
                 if state == T_INACTIVE:
                     # We will recurse on this one
                     if next_ch is None:
@@ -471,7 +476,6 @@ class WorkerThread(threading.Thread):
                 elif state == T_DATA_READY:
                     # This task could be run now
                     if next_ch is None:
-                        in_t._state = T_QUEUED
                         logging.debug("selected %s to run for thread %s" % 
                                   (repr(in_t), self.getName()))
                         next_ch = ch
@@ -487,27 +491,28 @@ class WorkerThread(threading.Thread):
                     raise Exception("Invalid task state for %s" %
                                     (repr(taskframe)))
             
-            logging.debug("Depends on %d more tasks, next task is %s" % (dep_count, next_ch))
+            logging.debug("Depends on %d more channels, next channel is %s" % (dep_count, next_ch))
             if dep_count == 0:
                 if task._state == T_DATA_READY:
                     # it is possible that the task became runnable if it was a compound
                     found_runnable = True
                 else: 
-                    raise Exception(("Invalid task frame state %s, all inputs " +
+                    raise Exception(("Invalid task state %s with frame %s, all inputs " +
                                      "were ready but state said otherwise ") %
-                                        repr(taskframe))
+                                        (repr(task), repr(taskframe)))
             else:
                 if next_ch is not None:
                     # need to wait for at least one thing
                     if dep_count == 1:
                         # Only depends on the next task we recurse on,
                         # can just treat as continuation
+                        task._state = T_QUEUED
                         continuation.append(task) # previous task
                     else:
                         # This task depends on multiple tasks, add frame to deque  
                         # so other tasks can be run later
-                        logging.debug("Saving task frame %s to deque"
-                                      % repr(taskframe))
+                        logging.debug("%s: saving task frame %s to deque"
+                                      % (self.getName(), repr(taskframe)))
                         self.deque.append(taskframe)
                         # fresh frame with new task
                         continuation = []

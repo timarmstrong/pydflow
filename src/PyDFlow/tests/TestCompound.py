@@ -107,7 +107,6 @@ class Test(unittest.TestCase):
         self.assertEquals(y2.get(), 20)
     
     def testIntermediate(self):
-        #raise Exception()
         x1 = Int(10)
         y1 = Int(20)
         

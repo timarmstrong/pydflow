@@ -55,6 +55,7 @@ class Task(object):
         
         # NOTE: self._exception will used to be store
         #    exception in case of an error
+        
     
     def __repr__(self):
         return "<PyDFlow %s %x: %s | %s | >" % (type(self).__name__, id(self), 

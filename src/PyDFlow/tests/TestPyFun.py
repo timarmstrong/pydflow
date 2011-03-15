@@ -160,9 +160,25 @@ class TestPyFun(unittest.TestCase):
         MagicInt = Int.subtype()
         self.assertTrue(future.isinstance(MagicInt("hello")))
 
-    def testZZZFib(self):
+    def testFib(self):
+        
         self.assertEquals(ex.fib(3).get(),2)
-        self.assertEquals(ex.fib(49).get(),7778742049) 
+        #self.assertEquals(ex.fib(24).get(),46368)
+        #self.assertEquals(ex.fib(5).get(),5)
+        #self.assertEquals(ex.fib(10).get(),55)
+        #self.assertEquals(ex.fib(49).get(),7778742049) 
+        
+    def testFib2(self):
+        @func((Int), (Int, Int))
+        def nextfib(f1, f2):
+            time.sleep(0.1)
+            return f1 + f2
+        fib_0, fib_1 = Int(0), Int(1)
+        fib_2 = nextfib(fib_0, fib_1)
+        fib_3 = nextfib(fib_1, fib_2)
+        fib_4 = nextfib(fib_2, fib_3)
+        fib_5 = nextfib(fib_3, fib_4)
+        fib_5.get()
         
     def testMergeSort(self):
         import random

@@ -185,11 +185,9 @@ class AtomicChannel(Channel):
         oldstate = self._state
         if oldstate in (CH_OPEN_W, CH_OPEN_RW):
             self._future.set(val)
-            if hasattr(self, '_extra_futures'):
-                logging.debug(repr(self._extra_futures))
-                for f in self._extra_futures:
-                    f.set(val)
+            
             self._state = CH_DONE_FILLED
+            logging.debug("%s set" % repr(self))
             #update the state and notify output tasks
             for t in self._out_tasks:
                 t._input_readable(self, oldstate, CH_DONE_FILLED)
@@ -200,7 +198,7 @@ class AtomicChannel(Channel):
             self._notify_done()
         else:
             #TODO: exception type
-            raise Exception("Invalid state %d when atomic_channel set" % self._state)
+            raise Exception("Invalid state when atomic_channel %s set" % repr(self))
             
         
 

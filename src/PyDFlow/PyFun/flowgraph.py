@@ -11,6 +11,7 @@ import PyDFlow.base.LocalExecutor as LocalExecutor
 
 
 import logging
+import threading
 from PyDFlow.types.check import FlTypeError
 
 class FutureChannel(AtomicChannel):
@@ -52,7 +53,9 @@ class FuncTask(AtomicTask):
         Just run the task in the current thread, 
         assuming it is ready
         """
-        logging.debug("Starting a FuncTask %s" % repr(self))
+        logging.debug("%s: Starting a FuncTask %s" % (threading.currentThread().getName(), 
+                                                      repr(self)))
+        
         #TODO: select execution backend, run me!
         
         with graph_mutex:
@@ -61,15 +64,17 @@ class FuncTask(AtomicTask):
             if self._state == T_QUEUED:
                 self._prep_channels()
                 input_values = self._gather_input_values()
+                logging.debug("%s: FuncTask %s changing state to T_RUNNING" % (
+                                                threading.currentThread().getName(), 
+                                              repr(self)))
                 self._state = T_RUNNING
-            elif self._state in (T_RUNNING, T_DONE_SUCCESS):
-                #TODO: safe I think
-                return
+                logging.debug("%s: Started a FuncTask %s" % (threading.currentThread().getName(), 
+                                              repr(self)))
             else:
                 # Bad state
                 # TODO: better logic
                 raise Exception("Invalid task state %s encountered by worker thread" % 
-                                    (task_state_name[self._state]))
+                                    (repr(self)))
         
         # Update state so we know its running
         #logging.debug("Running %s with inputs %s" %(repr(self), repr(input_values)))
