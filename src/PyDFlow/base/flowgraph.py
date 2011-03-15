@@ -15,16 +15,13 @@ assume that any locks are held.
 
 import logging
 from PyDFlow.types import flvar
-from PyDFlow.types import FlTypeError
 from PyDFlow.base.mutex import graph_mutex
 
 from states import *
 from exceptions import *
 
-import time
 
-import LocalExecutor
-from PyDFlow.types.check import check_logicaltype
+from PyDFlow.types.check import validate_swap
 
 
 # Channels are set to this if there is an error.
@@ -262,11 +259,12 @@ class Channel(flvar):
         that all tasks with output going into other are redirected 
         here.
         """
-        # TODO typecheck
-        #validate_swap([other])
+        # typecheck
+        # TODO: thisworks, but need tochange code to clarify what is conceptually happening
+        validate_swap((self,), (other,))
         for t in self._in_tasks:
             t._output_replace(self, other)
-        # TODO: handle output tasks?
+            
         other._in_tasks = self._in_tasks
         # This channel should no longer be used
 
