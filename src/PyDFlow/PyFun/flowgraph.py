@@ -61,7 +61,7 @@ class FuncTask(AtomicTask):
         with graph_mutex:
             # Set things up
             # Check state again to be sure it is sensible
-            if self._state == T_QUEUED:
+            if self._state in (T_QUEUED, T_CONTINUATION):
                 self._prep_channels()
                 input_values = self._gather_input_values()
                 logging.debug("%s: FuncTask %s changing state to T_RUNNING" % (

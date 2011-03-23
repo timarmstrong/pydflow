@@ -259,7 +259,8 @@ class WorkerThread(threading.Thread):
                     # dependencies
                     frame = makeframe(item, [])
             
-            logging.debug("Got %s from queue" % repr(frame))
+            logging.debug("%s got %s from queue" % (threading.currentThread().getName(),
+                                                    repr(frame)))
             # Note: makeframe could have returned none if there was an error
             # processing the input... we just need to return None
             # to let error propagate 
@@ -381,7 +382,7 @@ class WorkerThread(threading.Thread):
             graph_mutex.release()
             #  All dependencies satisfied
             self.exec_task(frame)
-        elif state in (T_DONE_SUCCESS, T_RUNNING, T_QUEUED):
+        elif state in (T_DONE_SUCCESS, T_RUNNING, T_QUEUED, T_CONTINUATION):
             # already started elsewhere
             graph_mutex.release()
             return
@@ -420,7 +421,7 @@ class WorkerThread(threading.Thread):
         It gathers all of the tasks which have only a single dependency.
         
         Returns a task frame with a channel with input task state T_DATA_READY, and continuation
-        with all tasks set to T_QUEUED
+        with all tasks set to T_CONTINUATION
         or None if nothing to run
         """
         logging.debug("%s: find_runnable_task" % (self.getName()))
@@ -486,7 +487,7 @@ class WorkerThread(threading.Thread):
                     dep_count += 1
                 elif state == T_DONE_SUCCESS:
                     pass
-                elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED):
+                elif state in (T_DATA_WAIT, T_RUNNING, T_QUEUED, T_CONTINUATION):
                     # Will be filled with data at some point by another executor
                     # but we do need to wait for it to finish
                     dep_count += 1
@@ -509,7 +510,7 @@ class WorkerThread(threading.Thread):
                     if dep_count == 1:
                         # Only depends on the next task we recurse on,
                         # can just treat as continuation
-                        task._state = T_QUEUED
+                        task._state = T_CONTINUATION
                         continuation.append(task) # previous task
                     else:
                         # This task depends on multiple tasks, add frame to deque  
@@ -649,7 +650,7 @@ def done_continuation(task, return_val, contstack):
         for val, chan in zip(return_vals, task._outputs) :
             chan._set(val)
     if contstack is not None and len(contstack) > 0:
-        contstack[0]._state = T_DATA_READY # revert from T_QUEUED
+        contstack[0]._state = T_DATA_READY # revert from T_CONTINUATION
         with idle_worker_cvar:
             resume_queue.put((contstack[0]._outputs[0], None, contstack[1:]))
             idle_worker_cvar.notifyAll()

@@ -5,7 +5,7 @@ import unittest
 import PyDFlow.app.paths as app_paths
 from PyDFlow.app import *
 import os.path
-import os
+import glob
 import time
 
 import logging
@@ -133,7 +133,6 @@ class Test(unittest.TestCase):
                           ["hello cat\n"])
         
     def testSimpleMapper2(self):
-        import glob
         for g in glob.glob("testSimpleMapper*.txt"):
             os.remove(g)
         
@@ -146,7 +145,18 @@ class Test(unittest.TestCase):
         self.assertEquals(out.open().readlines(),
                           ["hello world1\n"])
         
-
+    def testGlobMapper(self):
+        files = ["myfile%s.txt" % tag for tag in ["1", "3", "blah", "tmp"]]
+        for f in glob.glob("myfile*.txt"):
+            os.remove(f)
+        # Create a bunch of files
+        for f in files:
+            (localfile(f) << write("sfsd")).get()
+        
+        mapped = GlobMapper(localfile, "myfile*.txt")
+        self.assertEqual(set([m.get() for m in mapped]), set(files))
+         
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

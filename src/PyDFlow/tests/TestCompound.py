@@ -3,10 +3,13 @@ Created on Feb 28, 2011
 @author: tga
 '''
 import unittest
+import logging 
 from PyDFlow.PyFun import future, func, compound
 from PyDFlow.base.states import *
 
 from PyDFlow.types import Multiple
+
+logging.basicConfig(level=logging.DEBUG)
 
 Int = future.subtype()
 

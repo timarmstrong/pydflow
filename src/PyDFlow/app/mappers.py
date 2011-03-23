@@ -4,6 +4,7 @@ Created on Mar 15, 2011
 @author: tga
 '''
 from itertools import chain
+import glob
 
 class SimpleMapper(object):
     def __init__(self, type, prefix, suffix):
@@ -53,7 +54,25 @@ class SimpleMapper(object):
     def __iter__(self):
         return chain(self._indexed_items.itervalues(), self._named_items.itervalues())
     
-class RegexMapper(object):
-    def __init__(self, type, pattern):
-        self._type = type
-        self._pattern = pattern
+    
+class ReadOnlyArray(object):
+    def __init__(self, list):
+        super(ReadOnlyArray, self).__setattr__("_list", list)
+        
+    def __getitem__(self, key):
+        if not isinstance(key, ( int, long ) ):
+            raise TypeError("Key should be integral")
+        return self._list[key]
+    
+    def __setitem__(self, key, value):
+        raise TypeError("Setting item in ReadOnlyArray is not supported")
+    
+    def __len__(self):
+        return len(self._list)
+    
+    def __iter__(self):
+        return iter(self._list)
+        
+def GlobMapper(type, pattern):
+    files = glob.glob(pattern)
+    return ReadOnlyArray([type(f) for f in files])
