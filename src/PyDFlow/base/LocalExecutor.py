@@ -32,7 +32,7 @@ import random
 # INPUT QUEUE
 #==============================================#
 # Maximum time to wait before trying to steal work
-QUEUE_TIMEOUT = 0.1
+QUEUE_TIMEOUT = 0.02
 
 # Work first arrives in this queue from other threads
 in_queue = None
@@ -46,12 +46,16 @@ resume_queue = None
 #  WORKER THREADS
 # ===========================================#
 
+PYFUN_THREAD_NAME = "pyfun_thread"
+
 #NUM_THREADS = 8
 NUM_THREADS = 4
 
 workers = []
+
 # These deques store the work remaining to be done
 work_deques = None
+ReturnMarker = object()
 
 # Use these variables to gracefully let threads go idle
 # without them missing out on workstealing opportunities
@@ -88,10 +92,6 @@ def exec_async(channel):
     with idle_worker_cvar:
         idle_worker_cvar.notifyAll()
 
-ReturnMarker = object()
-
-PYFUN_THREAD_NAME = "pyfun_thread"
-
 def fail_task(task, continuation, exceptions):
     task._fail(exceptions)
     if continuation is not None:
@@ -106,6 +106,7 @@ def makeframe(channel, continuation):
     if channel._in_tasks is not None:
         for task in channel._in_tasks:
             for spec, ch in task._input_iter():
+                #TODO: support lazy/strict
                 if not spec.isRaw() and not ch._try_readable():
                     if ch._state == CH_ERROR:
                         fail_task(task, continuation, ch._exceptions)
@@ -167,11 +168,15 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            frame = self.get_from_queue(self.in_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(),frame=False)
+            frame = self.get_from_queue(self.in_queue, random.random() > 0.5, 
+                                        QUEUE_TIMEOUT * random.random(),frame=False)
             if frame is not None:
+                logging.debug("%s running from new work queue" % self.getName())
                 self.eval_frame(frame)
                 logging.debug("%s ran from new work queue" % self.getName())
-                continue 
+                continue
+            else:
+                logging.debug("frame was none")
             
             logging.debug("%s try to steal work" % self.getName())
             # Try to steal work
@@ -215,9 +220,6 @@ class WorkerThread(threading.Thread):
             if contstack is not None:
                 for nexttask in reversed(contstack):
                     if error is None:
-                        #with graph_mutex:
-                            #if nexttask._state
-                            #nexttask 
                         try:
                             nexttask._exec(callback)
                         except Exception, e:
@@ -283,9 +285,8 @@ class WorkerThread(threading.Thread):
                 idle_worker_count += 1
             while idle_worker_count == NUM_THREADS:
                 # all threads idle
-                # with idle_worker_cvar, try to get
-                # something from queue, if there is
-                # genuinely nothing there, block on
+                # with idle_worker_cvar, try to get something from 
+                # queue, if there is genuinely nothing there, block on
                 # condition
                 
                 frame = self.get_from_queue(self.resume_queue, False, None, frame=True)
@@ -294,14 +295,14 @@ class WorkerThread(threading.Thread):
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
-                    return
+                    break
                 
                 frame = self.get_from_queue(self.in_queue, False, None, frame=False)
                 if frame is not None:
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
-                    return
+                    break
                 
                 idle_worker_cvar.wait()
         self.idle = False
@@ -314,29 +315,24 @@ class WorkerThread(threading.Thread):
         Returns True if succeeds in stealing one task
         returns False if unsuccessful
         """
-        victim1 = -1
         thread_ids = range(NUM_THREADS - 1)
         random.shuffle(thread_ids)
         # try each of the threads in a randomised order
         for victim in thread_ids:
             if victim >= self.worker_num:
+                # adjust so that don't try to steal from self
                 victim += 1
             try:
                 frame = work_deques[victim].popleft()
                 while frame is ReturnMarker:
                     frame = work_deques[victim].popleft()
                 # Run and then go back to normal loop
-                #print ("Thread %s stole task %s" % (self.getName(), repr(frame[0])))
                 logging.debug("Thread %s stole frame %s from thread #%d" % (
                             self.getName(), repr(frame), victim))
                 self.eval_frame(frame)
                 return True
             except IndexError:
                 pass
-            # keep track of the first victim
-            if victim1 < 0:
-                victim1 = victim
-            victim = (victim + 1) % NUM_THREADS
         logging.debug("Thread %s couldn't find work to steal" % (self.getName()))
         return False
             
@@ -355,12 +351,14 @@ class WorkerThread(threading.Thread):
         graph_mutex.acquire()
         # Expand the channel as needed
         while hasattr(ch, '_proxy_for'):
+            #TODO: handle non-lazy arguments
             ch = ch._expand()
             logging.debug("expanded channel to %s " % repr(ch))
         frame = (ch, frame[1], frame[2])
         
         chstate = ch._state
         if chstate in (CH_DONE_FILLED, CH_OPEN_W, CH_OPEN_R, CH_OPEN_RW):
+            # Channel is filled or will be filled by something else 
             graph_mutex.release()
             return
         elif chstate == CH_ERROR:
@@ -406,12 +404,6 @@ class WorkerThread(threading.Thread):
             graph_mutex.release()
             raise Exception("Task %s has invalid state %d" % ((repr(task), state)))
     
-    
-    
-    def resume_continuation(self, continuation):
-        if self.continuation is not None:
-            raise Exception("Two continuations received :(")
-        self.continuation = continuation
     
     def find_runnable_task(self, taskframe):
         """        
