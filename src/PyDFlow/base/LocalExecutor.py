@@ -94,10 +94,16 @@ def exec_async(channel):
         idle_worker_cvar.notifyAll()
 
 def fail_task(task, continuation, exceptions):
-    task._fail(exceptions)
-    if continuation is not None:
-        for t in continuation:
-            t._fail(exceptions)
+    # assume holding lock
+    # traverse task graph to find all dependencies
+    tasks = [task]
+    while len(tasks) != 0:
+        task = tasks.pop()
+        task._fail(exceptions)
+        for ch in task._outputs:
+            ch._fail(exceptions)
+            tasks.extend(ch._out_tasks)
+
 
 def makeframe(channel, continuation):
     """
@@ -399,6 +405,7 @@ class WorkerThread(threading.Thread):
                 
         elif state == T_ERROR:
             # Exception should already be propagated, just return
+            assert(ch._state == CH_ERROR)
             graph_mutex.release()
             return
         else:
@@ -454,7 +461,7 @@ class WorkerThread(threading.Thread):
                     continue
                 elif ch._state == CH_ERROR:
                     fail_task(task, continuation, ch._exceptions)
-                    continue
+                    return
                 elif ch._state == CH_CLOSED:
                     ch._state = CH_CLOSED_WAITING 
                 
@@ -484,6 +491,8 @@ class WorkerThread(threading.Thread):
                     # Will be filled with data at some point by another executor
                     # but we do need to wait for it to finish
                     dep_count += 1
+                elif state == T_ERROR:
+                    raise Exception("Should not get here")
                 else:
                     raise Exception("Invalid task state for %s" %
                                     (repr(taskframe)))
@@ -494,6 +503,7 @@ class WorkerThread(threading.Thread):
                     # it is possible that the task became runnable if it was a compound
                     found_runnable = True
                 else: 
+                    # A dependent task may have failed: try to see if 
                     raise Exception(("Invalid task state %s with frame %s, all inputs " +
                                      "were ready but state said otherwise ") %
                                         (repr(task), repr(taskframe)))
@@ -618,7 +628,6 @@ def done_continuation(task, return_val, contstack):
     """
     logging.debug("%s finished" % repr(task))
     if return_val is None:
-        task._state = T_ERROR
         #TODO: exception type
         raise Exception("Got None return value")
     
@@ -632,10 +641,8 @@ def done_continuation(task, return_val, contstack):
             return_vals = tuple(return_val)
         except TypeError:
             #TODO: exception types
-            task._state = T_ERROR
             raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
         if len(return_vals) != len(task._outputs):
-            task._state = T_ERROR
             raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
 
         # Update current state, then pass data to channels

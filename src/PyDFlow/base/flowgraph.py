@@ -128,8 +128,6 @@ class Task(object):
         The task failed with some exception
         """
         self._state = T_ERROR
-        for ch in self._outputs:
-            ch._fail(exceptions)
     
     def _input_readable(self, input, oldstate, newstate):
         """
