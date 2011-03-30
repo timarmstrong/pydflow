@@ -9,6 +9,7 @@ import glob
 import time
 
 import logging
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 #logging.basicConfig(level=logging.DEBUG)
 
 testdir = os.path.dirname(__file__)
@@ -22,7 +23,7 @@ def write(str):
 @app((localfile), (localfile))
 def cp(src):
     return "cp @src @output_0"
-class Test(unittest.TestCase):
+class TestApp(PyDFlowTest):
 
 
     def setUp(self):

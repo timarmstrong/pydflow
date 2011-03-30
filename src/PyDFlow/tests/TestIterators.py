@@ -7,13 +7,14 @@ from PyDFlow.base.patterns import resultset, resultlist
 from PyDFlow.PyFun import *
 import time
 import random
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 @func((future), (None))
 def inc(x):
     time.sleep(random.random() * 0.1)
     return x + 1
 
-class Test(unittest.TestCase):
+class TestIterators(PyDFlowTest):
 
 
     def setUp(self):

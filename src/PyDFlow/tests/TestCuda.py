@@ -2,9 +2,10 @@
 @author: Tim Armstrong
 '''
 import unittest
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 
-class Test(unittest.TestCase):
+class TestCuda(PyDFlowTest):
 
 
     def setUp(self):

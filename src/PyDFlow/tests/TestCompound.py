@@ -8,6 +8,7 @@ from PyDFlow.PyFun import future, func, compound
 from PyDFlow.base.states import *
 
 from PyDFlow.types import Multiple
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 #logging.basicConfig(level=logging.DEBUG)
 
@@ -58,7 +59,7 @@ def psum_topdown(*numbers):
         i2 = numbers[split:]
         return add(psum_topdown(*i1), psum_topdown(*i2))
 
-class Test(unittest.TestCase):
+class TestCompound(PyDFlowTest):
 
 
     def setUp(self):
@@ -135,10 +136,10 @@ class Test(unittest.TestCase):
         #a    return None
         
     def testFunctionError(self):
-        self.assertRaises(TypeError, double(Int(None)).get)
+        self.assertExecutionException(TypeError, double(Int(None)).get)
 
     def testCompoundError(self):
-        self.assertRaises(TypeError, double(Int(None)).get)
+        self.assertExecutionException(TypeError, double(Int(None)).get)
  
 
 if __name__ == "__main__":

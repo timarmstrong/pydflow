@@ -14,6 +14,7 @@ from PyDFlow.types import Multiple, FlTypeError
 import PyDFlow.examples.PyFun as ex
 from PyDFlow.base import LocalExecutor
 from PyDFlow.base.patterns import resultset
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 Int = future.subtype()
 String = future.subtype()
@@ -76,7 +77,7 @@ class MyException(Exception):
 def cause_exception():
     raise MyException()
 
-class TestPyFun(unittest.TestCase):
+class TestPyFun(PyDFlowTest):
 
 
     def setUp(self):
@@ -269,7 +270,7 @@ class TestPyFun(unittest.TestCase):
         """
         Check that max recursion depth failure passed up  ok.
         """
-        self.assertRaises(RuntimeError, silly_add(Int(100000), Int(20)).get)
+        self.assertExecutionException(RuntimeError, silly_add(Int(100000), Int(20)).get)
     
     def testRecurse3(self):
         """
@@ -304,30 +305,41 @@ class TestPyFun(unittest.TestCase):
         
     def testSimpleException(self):
         fut = cause_exception()
-        self.assertRaises(MyException, fut.get)
+        self.assertExecutionException(MyException, fut.get)
     
     def testSimpleException2(self):
         fut = inc(cause_exception())
-        self.assertRaises(MyException, fut.get)
+        self.assertExecutionException(MyException, fut.get)
     
     def testSimpleException3(self):
         fut = add(cause_exception(), cause_exception())
-        self.assertRaises(MyException, fut.get)
+        self.assertExecutionException(MyException, fut.get)
     
-    def testZSimpleException4(self):
+    def testSimpleException4(self):
         fut = add(one(), cause_exception())
-        self.assertRaises(MyException, fut.get)
+        self.assertExecutionException(MyException, fut.get)
+    
+    def testSimpleException5(self):
+        # Check that exception is propagated ok if we reuse a bad channel
+        fut = cause_exception()
+        self.assertExecutionException(MyException, fut.get)
+        self.assertExecutionException(MyException, fut.get)
+        self.assertExecutionException(MyException, add(one(), fut).get)
+        self.assertExecutionException(MyException, add(one(), add(one(), fut)).get)
+        self.assertExecutionException(MyException, add(one(), add(one(), add(one(), fut))).get)
       
-    def testZZComplexException(self):
+    def testComplexException(self):
         res = add(add(
                     inc(one()), 
                     inc(cause_exception())), one())
-        self.assertRaises(MyException, res.get)
+        self.assertExecutionException(MyException, res.get)
         res2 = inc(res)
-        self.assertRaises(MyException, res2.get)
+        self.assertExecutionException(MyException, res2.get)
         res3 = add(res2, res)
-        self.assertRaises(MyException, res3.get)
-        
+        self.assertExecutionException(MyException, res3.get)
+    
+    
+            
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

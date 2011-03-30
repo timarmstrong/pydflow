@@ -7,10 +7,11 @@ from PyDFlow.PyFun import *
 import PyDFlow.examples.reduce as red
 from PyDFlow.base.patterns import dynreduce, treereduce, foldl, scanl
 from itertools import imap
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 Int = future.subtype()
 String = future.subtype()
-class Test(unittest.TestCase):
+class TestReduce(PyDFlowTest):
 
 
     def setUp(self):

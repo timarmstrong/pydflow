@@ -4,9 +4,10 @@
 import unittest
 from PyDFlow.futures import Future
 import threading as th
+from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 
-class TestFuture(unittest.TestCase):
+class TestFuture(PyDFlowTest):
 
 
     def setUp(self):

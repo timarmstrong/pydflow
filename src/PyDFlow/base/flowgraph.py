@@ -361,10 +361,10 @@ class Channel(flvar):
         logging.debug("%s failed with exceptions %s" % (repr(self), 
                                                         repr(exceptions)))
         if self._state == CH_ERROR:
-            self._exceptions.extend(exceptions)
+            self._exception.add_exceptions(exceptions)
         else:
             self._state = CH_ERROR
-            self._exceptions = exceptions
+            self._exception = ExecutionException(exceptions)
             # Should not be possible to call if future already set
             # TODO: set future? 
             self._future.set(ErrorVal)

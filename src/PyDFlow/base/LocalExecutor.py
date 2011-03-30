@@ -116,7 +116,7 @@ def makeframe(channel, continuation):
                 #TODO: support lazy/strict
                 if not spec.isRaw() and not ch._try_readable():
                     if ch._state == CH_ERROR:
-                        fail_task(task, continuation, ch._exceptions)
+                        fail_task(task, continuation, ch._exception.causes)
                         return None
                     deps.append(ch)
     return (channel, deps, continuation)
@@ -445,7 +445,7 @@ class WorkerThread(threading.Thread):
                 if ch is None:  
                     continue
                 elif ch._state == CH_ERROR:
-                    fail_task(task, continuation, ch._exceptions)
+                    fail_task(task, continuation, ch._exception.causes)
                     continue
                 elif hasattr(ch, '_proxy_for'):
                     ch = ch._expand()
@@ -460,7 +460,7 @@ class WorkerThread(threading.Thread):
                     deps[i] = None
                     continue
                 elif ch._state == CH_ERROR:
-                    fail_task(task, continuation, ch._exceptions)
+                    fail_task(task, continuation, ch._exception.causes)
                     return
                 elif ch._state == CH_CLOSED:
                     ch._state = CH_CLOSED_WAITING 

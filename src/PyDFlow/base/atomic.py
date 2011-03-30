@@ -225,8 +225,7 @@ class AtomicChannel(Channel):
         finally:
             graph_mutex.acquire()
         if res is ErrorVal and self._state == CH_ERROR:
-            #TODO compound exception?
-            raise self._exceptions[0] # first exception
+            raise self._exception
         return res
 
     def _error(self, *args, **kwargs):
@@ -289,7 +288,7 @@ class AtomicChannel(Channel):
         elif self._state == CH_ERROR:
             # It is upto get to check.
             self._notify_done()
-            raise Exception("Previous error: ")
+            raise self._exception
         else:
             #TODO: exception type
             raise Exception("Invalid state code: %d" % self._state)
