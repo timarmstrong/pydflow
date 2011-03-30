@@ -7,10 +7,8 @@ from states import *
 from PyDFlow.futures.futures import Future
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.mutex import graph_mutex
-from PyDFlow.types.check import isRaw
 
-import threading
-from itertools import izip
+
 import logging
 
 import LocalExecutor

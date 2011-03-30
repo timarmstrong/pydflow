@@ -9,7 +9,7 @@ from PyDFlow.base.states import *
 
 from PyDFlow.types import Multiple
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 Int = future.subtype()
 
@@ -122,7 +122,17 @@ class Test(unittest.TestCase):
         self.assertEquals(x2.get(), 10)
         self.assertEquals(y2.get(), 20)
         self.assertEquals(y22.get(), 40)    
-        
+
+#    def testTailRecursive(self):
+        #@compound((Int), (None))
+        #def countDown(n):
+            
+         #   return printn(n)
+            
+        #@func((future), (Int))
+        ##def printn(n):
+        #    print n
+        #a    return None
         
     def testFunctionError(self):
         self.assertRaises(TypeError, double(Int(None)).get)

@@ -9,7 +9,7 @@ import glob
 import time
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 testdir = os.path.dirname(__file__)
 app_paths.add_path(os.path.join(testdir, "apps"))

@@ -17,7 +17,7 @@ from PyDFlow.base.patterns import resultset
 
 Int = future.subtype()
 String = future.subtype()
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 
 @func((Int), ())

@@ -14,7 +14,7 @@ import atexit
 import os
 import tempfile
 import shutil
-from os.path import exists
+import os.path
 import logging
 
 # Set of temp files not yet cleaned up
@@ -63,24 +63,24 @@ class FileChannel(AtomicChannel):
             #TODO: exception
             raise UnimplementedException("Cannot write, future already set")
         elif self._bound is Unbound:
-            self._bind_tmp()
+            self._bound = self._mktmp()
+            self._temp_created=True
         else:
             #is bound, should be fine :)
             pass
 
-    def _bind_tmp(self):
+    def _mktmp(self):
         """
-        Creates an empty temporary file and binds self to it.
-        Responsible for setting temp_created if temp needs tobe
-        cleaned up
+        Creates an empty temporary file and returns path 
+        to it.  Should not leave any file handles open
         """
-        raise UnimplementedException("_create_tmp not overridden")
+        raise UnimplementedException("_mktmp not overridden")
     
     def _open_read(self):
         #TODO: exception types
         if not self._future.isSet():
             raise Exception("Reading from unset file channel")
-        elif not self._fileExists():
+        elif not self._fileExists(self._bound):
             raise Exception("Reading from nonexistent file")
 
     def _fileExists(self):
@@ -93,7 +93,10 @@ class FileChannel(AtomicChannel):
         Check to see if it is possible to start reading from this
         channel now
         """
-        return self._fileExists()
+        if self._bound is not Unbound:
+            return self._fileExists(self._bound)
+        else:
+            return False
 
     def __del__(self):
         """
@@ -107,17 +110,37 @@ class FileChannel(AtomicChannel):
         # Don't lock, as GC was called can assume that no references held
         logging.debug("__del__ called on File channel")
         if self._temp_created: 
-             self._cleanup_tmp()
+             self._cleanup_tmp(self._bound)
+             self._bound = None
+             self._temp_created = False
 
     def copy(self, dest):
         with graph_mutex:
-            self._copy(dest)
+            if not self._bound:
+                #TODO
+                raise Exception("Cannot copy unbound FileChannel %s" %(repr(self))) 
+            if self._state in (CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED):
+                self._docopy(self._bound, dest)
+            else:   
+                #TODO
+                raise Exception("Cannot copy FileChannel %s, invalid state" % (repr(self)))
 
-    def _copy(self, dest):
-        raise UnimplementedException("_copy was not overridden")
+    def _docopy(self, src, dest):
+        """
+        Just copy the file..
+        """
+        raise UnimplementedException("__docopy was not overridden")
 
-    def _cleanup_tmp(self):
+    def _cleanup_tmp(self, path):
         raise UnimplementedException("_cleanup_tmp was not overridden")
+    
+    def path(self):
+        """
+        Path returns the path to this file in the filesystem,
+        or None if no path has been chosen.
+        Default implemenation can be overridden
+        """
+        return self._bound
 
 
 class LocalFileChannel(FileChannel):
@@ -128,56 +151,40 @@ class LocalFileChannel(FileChannel):
     def open(self):
         return open(self.get(), 'r')
 
-    def _fileExists(self):
-        if self._bound is not Unbound:
-            return exists(self._bound)
-        else:
-            return False
+    def _fileExists(self, file):
+        return os.path.exists(file)
     
-    def _bind_tmp(self):
+    def _mktmp(self):
         """
         Creates an empty temporary file and binds self to it.
         """
         handle, path = tempfile.mkstemp()
         os.close(handle)
-        self._bound = path
         tmpfiles.add(path) # track files
-        self._temp_created=True
+        return path
 
-    def _cleanup_tmp(self):
-        os.remove(self._bound)
+    def _cleanup_tmp(self, path):
+        os.remove(path)
         tmpfiles.remove(self._bound) # no longer track
-        self._bound = None
-        self._temp_created=False
     
-    def _copy(self, dest):
+    def _docopy(self, src, dest):
         # copy preserving metadata
-        if not self._bound:
-            #TODO
-            raise Exception("Cannot copy unbound FileChannel %s" %(repr(self))) 
-        if self._state in (CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED):
-            shutil.copy2(self._bound, dest)
-        else:   
-            #TODO
-            raise Exception("Cannot copy FileChannel %s, invalid state" % (repr(self)))
+        shutil.copy2(self._bound, dest)
 
-
-    def path(self):
-        """
-        Path returns the path to this file in the filesystem,
-        or None if no path has been chosen.
-        """
-        #TODO: push up to superclass?
-        return self._bound
 
 
 class AppTask(AtomicTask):
+    # By default, use local executor
+    # TODO: need to dynamically choose executor based on:
+    #   a) availability of required binary
+    #   b) location of input files
+    launch_app = localexec.launch_app
+
     def __init__(self, func, *args, **kwargs):
         super(AppTask, self).__init__(*args, **kwargs)
         self._func = func
         self._input_data = None
         self._in_exec_queue = False
-    
     def _exec(self, continuation, contstack):
         
         # Lock while we gather up the input and output channels
@@ -187,18 +194,15 @@ class AppTask(AtomicTask):
             # Ensure only run once
             if self._in_exec_queue:
                 # Another thread got here first
+                logging.debug("App already being run - should this happen?")
                 return
             else:
                 self._in_exec_queue = True
             self._input_data = self._gather_input_values()
-        logging.debug("Input values were %s" % repr(self._input_data))
-        
-
-        # TODO: set intermediate states - RUNNING, etc
-        logging.debug("Starting an AppTask")
+        logging.debug("Starting apptask - input values were %s" % repr(self._input_data))
         
         # Launch the executable using backend module, attach a callback
-        localexec.launch_app(self, continuation, contstack)
+        self.launch_app(continuation, contstack)
     
     def isSynchronous(self):
         return False

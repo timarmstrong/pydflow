@@ -7,6 +7,29 @@ lists of arguments against them.
 @author: Tim Armstrong
 """
 
+def unpack(fltype):
+    multi = False
+    lazy = False
+    while True:
+        if isinstance(fltype, Multiple):
+            fltype = fltype.internal
+            multi = True
+        elif isinstance(fltype, Lazy):
+            fltype = fltype.internal
+            lazy = True
+        else:
+            break
+    raw = fltype is None or (not issubclass(fltype, flvar))
+    return fltype, raw, multi, lazy
+
+
+class Lazy(object):
+    """
+    Specifies that argument should be lazy
+    """
+    def __init__(self, internal):
+        self.internal = internal
+
 class Multiple(object):
     """
     Represents the type of the remainder of arg types
@@ -30,8 +53,7 @@ class InputSpec(object):
     """
     def __init__(self, name, fltype):
         self.name = name
-        self.fltype = fltype
-        self.raw = isRaw(fltype)
+        self.fltype, self.raw, self.multi, self.lazy = unpack(fltype)
 
     def __repr__(self):
         return 'flinput: %s %s' % (self.name, repr(self.fltype))
@@ -44,7 +66,10 @@ class InputSpec(object):
         return self.raw
 
     def isMulti(self):
-        return isinstance(self.fltype, Multiple)
+        return self.multi
+    
+    def isLazy(self):
+        return self.lazy
 
 class TaskDescriptor(object):
     """
@@ -77,6 +102,7 @@ class TaskDescriptor(object):
                         len(arg_names)+1, len(self.input_types), 
                         wrapped.__name__))
                 
+        #TODO: validate not lazy if needed??
         # Build the input specification for the function using introspection
         self.input_spec = [InputSpec( name, t) 
                     for t, name 
@@ -124,10 +150,6 @@ class TaskDescriptor(object):
     
 
 
-def isRaw(fltype):
-    if isinstance(fltype, Multiple):
-        fltype = fltype.internal
-    return fltype is None or (not issubclass(fltype, flvar))
                     
 
 
@@ -186,7 +208,7 @@ def validate_inputs(input_spec, args, kwargs):
             raise FlTypeError("Cannot provide positional arguments along with Multi():\
                 function was called with kwargs dict %s" % repr(kwargs))
 
-        rep_type = input_spec[-1].fltype.internal
+        rep_type = input_spec[-1].fltype
         for i, arg in enumerate(args):
             if i < spec_len - 1:
                 check_logicaltype(input_spec[i].fltype, arg, 

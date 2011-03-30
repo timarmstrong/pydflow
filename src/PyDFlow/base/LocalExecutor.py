@@ -32,7 +32,8 @@ import random
 # INPUT QUEUE
 #==============================================#
 # Maximum time to wait before trying to steal work
-QUEUE_TIMEOUT = 0.02
+#QUEUE_TIMEOUT = 0.02
+QUEUE_TIMEOUT = 0.05
 
 # Work first arrives in this queue from other threads
 in_queue = None

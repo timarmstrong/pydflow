@@ -17,7 +17,7 @@ import stacktrace
 
 Int = future.subtype()
 String = future.subtype()
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 @func((Int), ())
