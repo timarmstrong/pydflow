@@ -6,7 +6,7 @@ from PyDFlow.types import *
 
 @app((localfile), (Multiple(localfile)))
 def sort(*infiles):
-    return "sort -o @output_0 @infiles"
+    return App("sort", "-o", outfiles[0], *infiles)
 
 import sys
 

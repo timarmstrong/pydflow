@@ -175,7 +175,21 @@ class TestApp(PyDFlowTest):
         @app((localfile), ())
         def invalid():        
             return App("fssdfsiieke", "sdfsdfsfsfsfwerwc")
+        
         self.assertExecutionException(AppLaunchException, invalid().get)
+        
+    def testInvalidReturn(self):
+        @app((localfile), ())
+        def invalid():        
+            pass
+        self.assertExecutionException(TypeError, invalid().get)
+        
+    def testInvalidReturn2(self):
+        @app((localfile), ())
+        def invalid():        
+            return "echo 1"
+        self.assertExecutionException(TypeError, invalid().get)    
+            
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
