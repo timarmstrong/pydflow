@@ -116,10 +116,14 @@ class Task(object):
             o._register_input(self)
 
 
-    def _exec(self, continuation):
+    def _exec(self, continuation, failure_continuation, contstack=None):
         """
         To be overridden in child class
         Start the task running and return immediately.
+        contstack argument does not need to be provided for synchronous tasks
+        failures can be handled either by throwing an exception within the _exec function, 
+        or by calling failure_continuation (if the error occurs after return from teh _exec
+        function)
         """
         raise UnimplementedException("_exec is not implemented") 
 

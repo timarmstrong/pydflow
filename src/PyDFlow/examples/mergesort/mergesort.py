@@ -20,15 +20,15 @@ app_count = 0
 
 @app((sorted_intfile), (intfile))
 def sort(file):
-    return "sort -n @file -o @output_0"
+    return App("sort", "-n", file, "-o", outfiles[0])
 
 @app((sorted_intfile), (sorted_intfile, sorted_intfile))
 def merge(f1, f2):
-    return "merge @f1 @f2 @output_0"
+    return App("merge", f1, f2, outfiles[0])
 
 @app((localfile), (localfile))
 def compile(src):
-    return "gcc -o @output_0 @src"
+    return App("gcc", "-o", outfiles[0], src)
 
 def do_compile():
     bin = localfile(os.path.join(srcdir, "merge")) <<  \

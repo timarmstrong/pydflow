@@ -2,10 +2,9 @@
 '''
 @author: Tim Armstrong
 '''
-from PyDFlow.app import *
+from PyDFlow.app import app, App, localfile, outfiles
 import logging
 import os.path
-import sys
 
 srcdir = os.path.dirname(__file__)
 #logging.basicConfig(level=logging.DEBUG)
@@ -17,7 +16,7 @@ photo = image(os.path.join(srcdir,
 
 @app((image), (image, int))
 def rotate(input, angle):
-    return "convert -rotate %d @input @output_0" % angle
+    return App("convert", "-rotate", angle, input, outfiles[0]) 
 
 
 rotated = image("rotated.jpeg")

@@ -35,6 +35,63 @@ def __cleanup_alltmp():
 atexit.register(__cleanup_alltmp)
         
 
+"""
+Objects to represent a command line.
+"""
+
+def sub_arg(arg, output_paths):
+    max_output = len(output_paths) - 1
+    if isinstance(arg, Output):
+        if arg.index > max_output:
+            raise IndexError("Output index %d provided is out of range"
+                             % arg.index)
+        arg = output_paths[arg.index]
+    # Force to string
+    if arg is None:
+        raise ValueError("None object provided to App")
+    return str(arg)
+
+class App(object):
+    def __init__(self, *args, **kwargs):
+        # Command format:
+        # first argument is string with name of app
+        # subsequent arguments are either strings passed to the
+        # shell or a special AppFilePath object.
+        self.command = args
+        
+        # Retrieve redirection info: variables
+        # will be None if no redirection
+        self.stdout = kwargs.pop('stdout', None)
+        self.stdin = kwargs.pop('stdin', None)
+        self.stderr = kwargs.pop('stderr', None)
+        
+        if len(kwargs) != 0:
+            raise TypeError("Invalid keyword arguments provided by app task: %s " 
+                            % ' '.join([key for key in kwargs]))
+    
+    def gen_command(self, output_paths):
+        sub = lambda arg: sub_arg(arg, output_paths) 
+        call_args = [sub(arg) for arg in self.command]
+    
+        if self.stdin is not None:
+            self.stdin = sub(self.stdin)
+        if self.stdout is not None:
+            self.stdout = sub(self.stdout)
+        if self.stderr is not None:
+            self.stderr = sub(self.stderr)
+        return (call_args, self.stdin, self.stdout, self.stderr)
+         
+        
+class Output(object):
+    def __init__(self, index):
+        self.index = index
+        
+class OutputGen(object):
+    def __getitem__(self, key):
+        return Output(key)
+
+outfiles = OutputGen()
+
 class FileChannel(AtomicChannel):
     """
     A generic channel to handle all sorts of file data.
@@ -84,7 +141,7 @@ class FileChannel(AtomicChannel):
             raise Exception("Reading from nonexistent file")
 
     def _fileExists(self):
-       raise UnimplementedException("_fileExists not overriden on file \
+        raise UnimplementedException("_fileExists not overriden on file \
                 channel object") 
 
 
@@ -110,9 +167,9 @@ class FileChannel(AtomicChannel):
         # Don't lock, as GC was called can assume that no references held
         logging.debug("__del__ called on File channel")
         if self._temp_created: 
-             self._cleanup_tmp(self._bound)
-             self._bound = None
-             self._temp_created = False
+            self._cleanup_tmp(self._bound)
+            self._bound = None
+            self._temp_created = False
 
     def copy(self, dest):
         with graph_mutex:
@@ -185,7 +242,8 @@ class AppTask(AtomicTask):
         self._func = func
         self._input_data = None
         self._in_exec_queue = False
-    def _exec(self, continuation, contstack):
+        
+    def _exec(self, continuation, failure_continuation,  contstack):
         
         # Lock while we gather up the input and output channels
         logging.debug("Gathering input values for %s" % repr(self))
@@ -202,7 +260,7 @@ class AppTask(AtomicTask):
         logging.debug("Starting apptask - input values were %s" % repr(self._input_data))
         
         # Launch the executable using backend module, attach a callback
-        self.launch_app(continuation, contstack)
+        self.launch_app(continuation, failure_continuation, contstack)
     
     def isSynchronous(self):
         return False
@@ -214,40 +272,17 @@ class AppTask(AtomicTask):
         """
         with graph_mutex:
             self._prep_channels()
-            # Create a dictionary of variable names to file paths
-            #TODO: what if input and output names overlap?
-            path_dict = {}
-            multi = []
-            multi_count = 0
-            multi_name = None
-            for spec, input_path in self._descriptor.zip(self._input_data):
-                if not spec.isRaw():
-                    if spec.isMulti():
-                        if spec.fltype.internal.issubclassof(FileChannel):
-                            path_dict["%s_%d" % (spec.name, multi_count)] = \
-                                    input_path
-                            multi.append(input_path)
-                            multi_name = spec.name
-                            multi_count += 1
-                    elif spec.fltype.issubclassof(FileChannel):
-                        path_dict[spec.name] = input_path
-            if multi_name is not None:
-                path_dict[multi_name] = multi
-    
-            for i, output in enumerate(self._outputs):
-                path_dict["output_%d" % i] =  output._bound
-    
-            logging.debug("% s path_dict: %s" % (repr(self), repr(path_dict)))
+            out_paths =   [output._bound for output in self._outputs]
             
-            cmd_string = self._func(*self._input_data)
-            #TODO: function should be able to also return a dictionary
-            # no longer touching graph
+        app_object = self._func(*self._input_data)
+        if not isinstance(app_object, App):
+            raise TypeError("app function returned object that was not App")
         
-        # parse cmd_string, inject filenames, come up with a list of
-        # arguments for the task
-        call_args = parse_cmd_string(cmd_string, path_dict)
-        #TODO: add in redirection
-        stdin_file, stdout_file, stderr_file = (None, None, None)
+          
+        call_args, stdin_file, stdout_file, stderr_file = app_object.gen_command(out_paths)
+        
+        logging.debug("Generated command %s with redirections in=%s, out=%s, err=%s"
+                      % (repr(call_args), stdin_file, stdout_file, stderr_file))
         return call_args, stdin_file, stdout_file, stderr_file
 
     def started_callback(self):

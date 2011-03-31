@@ -100,7 +100,7 @@ class ChannelPlaceholder(Placeholder, Channel):
             in_task._state = T_QUEUED
             graph_mutex.release()
             try:
-                in_task._exec(None)
+                in_task._exec(None, None)
             finally:
                 graph_mutex.acquire()
             
@@ -155,7 +155,7 @@ class CompoundTask(AtomicTask):
         self._func = func
         self._compound = True
         
-    def _exec(self, continuation):
+    def _exec(self, continuation, failure_continuation):
         """
         Just run the task in the current thread, 
         assuming it is ready

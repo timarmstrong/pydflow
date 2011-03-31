@@ -43,7 +43,7 @@ class CUDATask(AtomicTask):
         #self.grid = kwargs.get("grid", (1,1))
 
 
-    def _exec(self):
+    def _exec(self, continuation, failure_continuation, contstack=None):
         # TODO: update state
         # TODO: prep channels.  If GPU channels are already on device, we're good.  Otherwise
         #    we will need to worry about starting asynchronously a data transfer
@@ -53,7 +53,8 @@ class CUDATask(AtomicTask):
         # TODO: launch asynchronous kernel by sending to GPU host thread via queue
         pass
         
-        
+    def isSynchronous(self):
+        return False
 
 class _CUDAKernel(TaskWrapper):
     """
@@ -116,6 +117,6 @@ class CUDAKernel(_CUDAKernel):
     Hack to separate out func_name and source_mod - nicer interface for users
     of module
     """
-    def __init__(self, func_name, source_mod, *args, **kwargs)
+    def __init__(self, func_name, source_mod, *args, **kwargs):
         _CUDAKernel.__init__(self, (func_name, source_mod), *args, **kwargs)
     

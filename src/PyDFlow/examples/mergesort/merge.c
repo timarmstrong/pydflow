@@ -71,5 +71,5 @@ int main(int argc, char **argv) {
     fclose(out);
     
     fprintf(stderr, "%d items merged\n", count);
-
+    return 0;
 }

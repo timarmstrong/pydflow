@@ -48,7 +48,7 @@ class FuncTask(AtomicTask):
 
 
 
-    def _exec(self, continuation):
+    def _exec(self, continuation, failure_continuation):
         """
         Just run the task in the current thread, 
         assuming it is ready
@@ -86,8 +86,7 @@ class FuncTask(AtomicTask):
         # it will be handled by the caller
         return_val = self._func(*(input_values))
             
-        with graph_mutex:
-            continuation(self, return_val)
+        continuation(self, return_val)
         
     def isSynchronous(self):
         return True

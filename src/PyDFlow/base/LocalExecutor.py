@@ -201,6 +201,7 @@ class WorkerThread(threading.Thread):
     def exec_task(self, frame):
         """
         Start the task running.  State should eb set to T_QUEUED
+        graph_mutex shoudl not be held
         """
         chan = frame[0]
         # assume for now <= 1, can revisit assumption later
@@ -214,30 +215,33 @@ class WorkerThread(threading.Thread):
         assert(task._state == T_QUEUED)
         #TODO: what if continuation called before exception
         if task.isSynchronous():
-            callback = lambda task, return_val: done_continuation(task, return_val, None)
+            callback = lambda task, return_val: success_continuation(task, return_val, None)
             
             try:
-                task._exec(callback)
+                task._exec(callback, failure_continuation)
             except Exception, e:
                 logging.error("%s caught exception %s" % (self.getName(), 
                                             repr(e)))
-                fail_task(task, contstack, [e])
+                with graph_mutex:
+                    fail_task(task, contstack, [e])
                 return
             error = None
             if contstack is not None:
                 for nexttask in reversed(contstack):
                     if error is None:
                         try:
-                            nexttask._exec(callback)
+                            nexttask._exec(callback, failure_continuation)
                         except Exception, e:
                             error = e
                     if error is not None:
-                        fail_task(nexttask, [], [error])
+                        with graph_mutex:
+                            fail_task(nexttask, [], [error])
         else:
             try:
-                task._exec(done_continuation, contstack)
+                task._exec(success_continuation, failure_continuation, contstack)
             except Exception, e:
-                fail_task(task, contstack, [e])
+                with graph_mutex:
+                    fail_task(task, contstack, [e])
             
     def run_from_deque(self):
         try:
@@ -621,39 +625,47 @@ def force_recursive(channel):
         finally:
             graph_mutex.acquire()
 
-
-def done_continuation(task, return_val, contstack):
+def failure_continuation(task, exception):
     """
-    FOr now, assume mutex is held by caller
+    Assume mutex not held by caller
     """
-    logging.debug("%s finished" % repr(task))
-    if return_val is None:
-        #TODO: exception type
-        raise Exception("Got None return value")
+    logging.debug("%s failed" % repr(task))
+    with graph_mutex:
+        fail_task(task, None, [exception])
     
-    # Fill in all the output channels
-    if len(task._outputs) == 1:
-        # Update current state, then pass data to channels
-        task._state = T_DONE_SUCCESS
-        task._outputs[0]._set(return_val)
-    else:
-        try:  
-            return_vals = tuple(return_val)
-        except TypeError:
-            #TODO: exception types
-            raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
-        if len(return_vals) != len(task._outputs):
-            raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
-
-        # Update current state, then pass data to channels
-        task._state = T_DONE_SUCCESS
-        for val, chan in zip(return_vals, task._outputs) :
-            chan._set(val)
-    if contstack is not None and len(contstack) > 0:
-        contstack[0]._state = T_DATA_READY # revert from T_CONTINUATION
-        with idle_worker_cvar:
-            resume_queue.put((contstack[0]._outputs[0], None, contstack[1:]))
-            idle_worker_cvar.notifyAll()
+def success_continuation(task, return_val, contstack):
+    """
+    Assume mutex not held by caller
+    """
+    with graph_mutex:
+        logging.debug("%s finished" % repr(task))
+        if return_val is None:
+            #TODO: exception type
+            raise Exception("Got None return value")
+        
+        # Fill in all the output channels
+        if len(task._outputs) == 1:
+            # Update current state, then pass data to channels
+            task._state = T_DONE_SUCCESS
+            task._outputs[0]._set(return_val)
+        else:
+            try:  
+                return_vals = tuple(return_val)
+            except TypeError:
+                #TODO: exception types
+                raise Exception("Expected tuple or list of length %d as output, but got something not iterable" % (len(task._outputs)))
+            if len(return_vals) != len(task._outputs):
+                raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
+    
+            # Update current state, then pass data to channels
+            task._state = T_DONE_SUCCESS
+            for val, chan in zip(return_vals, task._outputs) :
+                chan._set(val)
+        if contstack is not None and len(contstack) > 0:
+            contstack[0]._state = T_DATA_READY # revert from T_CONTINUATION
+            with idle_worker_cvar:
+                resume_queue.put((contstack[0]._outputs[0], None, contstack[1:]))
+                idle_worker_cvar.notifyAll()
 
             
 def resume_taskframe(taskframe):

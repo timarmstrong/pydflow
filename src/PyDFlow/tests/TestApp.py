@@ -10,6 +10,7 @@ import time
 
 import logging
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
+from PyDFlow.app.exceptions import ExitCodeException, AppLaunchException
 #logging.basicConfig(level=logging.DEBUG)
 
 testdir = os.path.dirname(__file__)
@@ -18,20 +19,18 @@ app_paths.add_path(os.path.join(testdir, "apps"))
 
 @app((localfile), (None))
 def write(str):
-    return "myecho @output_0 '%s'" % str
+    return App("myecho", outfiles[0], str)
 
 @app((localfile), (localfile))
 def cp(src):
-    return "cp @src @output_0"
+    return App("cp", src, outfiles[0])
+
 class TestApp(PyDFlowTest):
-
-
     def setUp(self):
         pass
-
-
     def tearDown(self):
         pass
+
 
 
     def testCp(self):
@@ -72,7 +71,7 @@ class TestApp(PyDFlowTest):
     def testTwoArg(self):
         @app((localfile), (localfile, localfile))
         def sort(f1, f2):
-            return "sort @f1 @f2 -o @output_0"
+            return App("sort", f1, f2, "-o", outfiles[0])
         hw1 = localfile(os.path.join(testdir, "files/helloworld"))
         hw2 = localfile(os.path.join(testdir, "files/helloworld"))
         sort(hw1, hw2).get()
@@ -157,7 +156,26 @@ class TestApp(PyDFlowTest):
         mapped = GlobMapper(localfile, "myfile*.txt")
         self.assertEqual(set([m.get() for m in mapped]), set(files))
          
+    
+    def testInvalidOutput(self):
         
+        @app((localfile), ())
+        def invalid():
+            return App("echo", "blah", stdout=outfiles[1])
+        self.assertExecutionException(IndexError, invalid().get)
+        
+    def testExitCode(self):
+        @app((localfile), ())
+        def invalid():
+            return App("cat", "sdfsdfsfsfsfwerwc")
+        self.assertExecutionException(ExitCodeException, invalid().get)
+    
+    
+    def testInvalidApp(self):
+        @app((localfile), ())
+        def invalid():        
+            return App("fssdfsiieke", "sdfsdfsfsfsfwerwc")
+        self.assertExecutionException(AppLaunchException, invalid().get)
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
