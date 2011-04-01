@@ -1,3 +1,4 @@
+from __future__ import with_statement
 '''
 @author: Tim Armstrong
 '''
@@ -5,6 +6,7 @@ import Queue
 from itertools import islice, imap, izip
 import logging
 import heapq
+from PyDFlow.base.mutex import graph_mutex
 
 def resultlist(channels, max_ready=None):
     """
@@ -155,8 +157,30 @@ def dynreduce(reducefun, args):
     return finishedq.get()
 
 
-    
-
+def getall(*args):
+    """
+    args can be channels or iterable containers of channels
+    """
+    items = []
+    next_to_run = 0
+    for arg in args:
+        try:
+            # See if this is iterable
+            items.extend(arg)
+        except TypeError:
+            items.append(arg)
+        
+        # Force just added items
+        # Avoid repeatedly acquiring mutex
+        with graph_mutex:
+            for i in xrange(next_to_run, len(items)):
+                items[i]._force()
+        # keep track of which we have forced
+        next_to_run = len(items)
+            
+    # Wait for all to finish
+    for i in items:
+        i.get()
 
 def foldl(fn, init, lst):
     for accum in scanl(fn, init, lst):

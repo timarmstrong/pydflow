@@ -5,6 +5,7 @@ Created on Mar 15, 2011
 '''
 from itertools import chain
 import glob
+import re
 
 class SimpleMapper(object):
     def __init__(self, type, prefix, suffix):
@@ -76,3 +77,8 @@ class ReadOnlyArray(object):
 def GlobMapper(type, pattern):
     files = glob.glob(pattern)
     return ReadOnlyArray([type(f) for f in files])
+
+def SubMapper(type, source, match, transform):
+    compiled = re.compile(match)
+    names = (re.sub(compiled, transform, f._bound) for f in source)
+    return ReadOnlyArray([type(n) for n in names])

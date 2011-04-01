@@ -1,7 +1,10 @@
+from __future__ import with_statement
+
 '''
 @author: Tim Armstrong
 '''
 from PyDFlow.types.check import InputSpec, TaskDescriptor
+from PyDFlow.base.mutex import graph_mutex
 import inspect
 from functools import wraps
 
@@ -69,6 +72,42 @@ class task_decorator(object):
         return wraps(function)(wrapped)
 
 
+
+"""
+magic tuple which implements << and >>
+"""
+class magictuple(tuple):
+    def __lshift__(self, oth):
+        """
+        Applies << operator multiply
+        """
+        if len(self) != len(oth):
+            raise TypeError("shift operator must be applied to tuples of same length")
+        
+        with graph_mutex:
+            for o, s in zip(oth, self):
+                o._replacewith(s)
+        return self
+    
+    def __rshift__(self, oth):
+        """
+        Same as lshift but injecting LHS into RHS
+        """
+        if len(self) != len(oth):
+            raise TypeError("shift operator must be applied to tuples of same length")
+        
+        with graph_mutex:
+            for o, s in zip(oth, self):
+                s._replacewith(o)
+        return oth
+    
+
+    __ilshift__ = __lshift__
+    __irshift__ = __rshift__
+    __rlshift__ = __rshift__
+    __rrshift__ = __lshift__
+
+
 class TaskWrapper(object):
     def __init__(self, func, task_class, descriptor):
         self.func = func
@@ -88,7 +127,7 @@ class TaskWrapper(object):
         if len(task._outputs) == 1:
             return task._outputs[0]
         else:
-            return task._outputs
+            return magictuple(task._outputs)
 
     def __repr__(self):
         return "<PyDFlow Function: %s>" % repr(self._taskname)

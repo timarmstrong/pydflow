@@ -199,6 +199,8 @@ class Task(object):
 
 Unbound = object()
 
+
+
 class Channel(flvar):
     """
     Channels form the other half of the bipartite graph, alongside tasks.
@@ -224,13 +226,8 @@ class Channel(flvar):
         return "<PyDFlow %s %x %s | >" % (type(self).__name__, id(self),  
                                                      channel_state_name[self._state])
   
+     
     def __lshift__(self, oth):
-        return self.__ilshift__(oth)
-    
-    def __rshift__(self, oth):
-        return self.__irshift__(oth)
-
-    def __ilshift__(self, oth):
         """
         "Assigns" the channel on the right hand side to this one.
         More accurately, merges the data from the RHS channel
@@ -243,14 +240,19 @@ class Channel(flvar):
             oth._replacewith(self)
         return self
     
-    def __irshift__(self, oth):
+    def __rshift__(self, oth):
         """
-        Same as ilshift but injecting LHS into RHS
+        Same as lshift but injecting LHS into RHS
         """
         with graph_mutex:
             self._replacewith(oth)
         return oth
 
+    __ilshift__ = __lshift__
+    __irshift__ = __rshift__
+    __rlshift__ = __rshift__
+    __rrshift__ = __lshift__
+    
     def _replacewith(self, other):
         """
         Replace this channel with a different channel in all

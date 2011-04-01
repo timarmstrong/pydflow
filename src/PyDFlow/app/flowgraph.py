@@ -89,8 +89,10 @@ class Output(object):
 class OutputGen(object):
     def __getitem__(self, key):
         return Output(key)
-
+# user can index into this object to represent positional output args
 outfiles = OutputGen()
+
+
 
 class FileChannel(AtomicChannel):
     """
@@ -111,6 +113,7 @@ class FileChannel(AtomicChannel):
         """
         raise UnimplementedException("open() not implemented for \
                                         generic file channels")
+        
     def _open_write(self):
         """
         In addition to the usual setup, if we are writing to a file, we

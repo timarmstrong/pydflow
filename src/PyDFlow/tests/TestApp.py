@@ -109,7 +109,6 @@ class TestApp(PyDFlowTest):
                 os.remove(f) 
                    
     def testSimpleMapper(self):
-        import glob
         for g in glob.glob("testSimpleMapper*.txt"):
             os.remove(g)
         
