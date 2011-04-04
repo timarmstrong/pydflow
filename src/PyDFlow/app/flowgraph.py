@@ -261,7 +261,8 @@ class AppTask(AtomicTask):
                 self._in_exec_queue = True
             self._input_data = self._gather_input_values()
         logging.debug("Starting apptask - input values were %s" % repr(self._input_data))
-        
+        #logging.info("Queuing app task %s with inputs %s" % (self.name(), 
+        #                            ' '.join([repr(arg) for arg in self._input_data])))
         # Launch the executable using backend module, attach a callback
         self.launch_app(continuation, failure_continuation, contstack)
     

@@ -59,7 +59,9 @@ class Task(object):
                                                 repr(self._taskname), 
                                                      task_state_name[self._state])
 
-
+    def name(self):
+        return self._taskname
+    
     def _setup_inputs(self):
         not_ready_count = 0
         inputs_ready = []

@@ -6,6 +6,7 @@ Created on Mar 15, 2011
 from itertools import chain
 import glob
 import re
+import os.path
 
 class SimpleMapper(object):
     def __init__(self, type, prefix, suffix):
@@ -78,7 +79,11 @@ def GlobMapper(type, pattern):
     files = glob.glob(pattern)
     return ReadOnlyArray([type(f) for f in files])
 
-def SubMapper(type, source, match, transform):
+def SubMapper(type, source, match, transform, directory=None):
     compiled = re.compile(match)
     names = (re.sub(compiled, transform, f._bound) for f in source)
+    if directory is not None:
+        # Change directory
+        names = (os.path.join(directory, os.path.basename(name)) 
+                 for name in names)
     return ReadOnlyArray([type(n) for n in names])

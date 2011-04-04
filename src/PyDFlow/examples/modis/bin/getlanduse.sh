@@ -6,7 +6,7 @@
 # Usage: getlanduse.sh modisFile histogramFile
 #
 
-sleep 10
+#sleep 10
 convert  $1 -format %c histogram:info:- 2>/dev/null |
   grep '[0-9]' |
   sort -nr |

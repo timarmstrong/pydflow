@@ -6,10 +6,18 @@ import os.path
 import PyDFlow.app.paths as app_paths
 import sys
 
-if len(sys.argv) != 2:
-    print "USAGE: modis.py <directory with modis*.tif files>"
+import logging
+logging.basicConfig(level=logging.INFO)
+
+if len(sys.argv) not in (2, 3):
+    print "USAGE: modis.py <directory with modis*.tif files> [optional output directory]" 
     exit(1)
 modisdir = sys.argv[1]
+if len(sys.argv) == 3:
+    outputdir = sys.argv[2]
+else:
+    outputdir = modisdir
+
 
 # Add the modis shell scripts to PyDFlow search path
 srcdir = os.path.dirname(__file__)
@@ -34,7 +42,7 @@ def colormodis(input):
 
 # Mappers return read-only array.  Both also can take keyword arguments
 geos = GlobMapper(imagefile, modisdir + "/modis*.tif")
-land = SubMapper(landuse, geos, "(h..v..).*$", "\\1.landuse.byfreq")
+land = SubMapper(landuse, geos, "(h..v..).*$", "\\1.landuse.byfreq", directory=outputdir)
 
 # Find the land use of each modis tile
 # enumerate is a python built-in which generates indices
@@ -56,8 +64,8 @@ land = [landuse(re.sub(pattern, transform, geo.path()))
 
 # Find the top 10 most urban tiles (by area)
 UsageTypeURBAN=13;
-bigurban = localfile("topurban.txt")
-urbantiles = localfile("urbantiles.txt")
+bigurban = localfile(os.path.join(outputdir, "topurban.txt"))
+urbantiles = localfile(os.path.join(outputdir, "urbantiles.txt"))
 
 (bigurban, urbantiles) << analyzeLandUse(UsageTypeURBAN, 10, *land);
 
@@ -72,7 +80,9 @@ urbanfiles = map(imagefile, urbanfilenames)
 # Create a set of recolored images for just the urban tiles
 recoloredImages = []
 for uf in urbanfiles:
-    recoloredPath = uf.path().replace(".tif", ".recolored.tif")
+    recoloredPath = os.path.join(
+                    outputdir, 
+                    os.path.basename(uf.path()).replace(".tif", ".recolored.tif"))
     recolored = imagefile(recoloredPath) << colormodis(uf)
     recoloredImages.append(recolored)
 

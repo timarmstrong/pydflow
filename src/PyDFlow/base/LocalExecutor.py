@@ -230,6 +230,7 @@ class WorkerThread(threading.Thread):
         contstack = frame[2]
 
         logging.debug("%s starting task %s" % (self.getName(), repr(task)))
+        logging.info("Queueing task %s " % task.name())
         assert(task._state == T_QUEUED)
         #TODO: what if continuation called before exception
         if task.isSynchronous():
@@ -647,7 +648,7 @@ def failure_continuation(task, exception):
     """
     Assume mutex not held by caller
     """
-    logging.debug("%s failed" % repr(task))
+    logging.info("task %s failed" % task.name())
     with graph_mutex:
         fail_task(task, None, [exception])
     
@@ -655,6 +656,7 @@ def success_continuation(task, return_val, contstack):
     """
     Assume mutex not held by caller
     """
+    logging.info("task %s finished successfully" % task.name())
     with graph_mutex:
         logging.debug("%s finished" % repr(task))
         if return_val is None:

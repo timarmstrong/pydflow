@@ -131,6 +131,15 @@ class AppQueueEntry(object):
             task = self.task
     
             cmd_args, stdin_file, stdout_file, stderr_file = task._prepare_command()
+            logging.info("Running app task %s.  Command line: %s." % (self.task.name(), 
+                                    ' '.join(cmd_args)))
+            if stdin_file is not None:
+                logging.info("stdin redirected from %s" % stdin_file)
+            if stdout_file is not None:
+                logging.info("stdout redirected to %s" % stdout_file)
+            if stderr_file is not None:
+                logging.info("stderr redirected to %s" % stderr_file)
+                
             if self.process is not None:
                 raise Exception("Tried to run AppQueueEntry twice")
            

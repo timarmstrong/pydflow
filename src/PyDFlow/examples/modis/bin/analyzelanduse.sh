@@ -14,7 +14,7 @@ sed -e 's/:/ /' |
 sort -n -k +2 |
 tail -${num} >$stats
 
-( awk '{print $1}' |
-  sed -e 's/landuse.//' -e 's/\..*/.tif/' -e "s,^,," \
+( awk '{system("basename " $1)}' |
+  sed -e 's/\.landuse\.byfreq/.tif/' -e "s,^,$modisdir/,"
 ) <$stats >$tilelist
 

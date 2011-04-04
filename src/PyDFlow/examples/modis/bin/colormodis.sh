@@ -42,8 +42,8 @@ cp $infile $tmp
 # output logged to stdout/error is ignored by swift for this app()
 
 while read mval color ; do
-  echo color $mval is $color
-  echo convert $tmp "-fill" "$color" "-opaque" "$mval" $tmp
+  #echo color $mval is $color
+  #echo convert $tmp "-fill" "$color" "-opaque" "$mval" $tmp
   convert $tmp "-fill" "$color" "-opaque" "$mval" $tmp
 done <$map
 
