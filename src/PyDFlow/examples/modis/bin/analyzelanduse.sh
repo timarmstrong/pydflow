@@ -15,6 +15,6 @@ sort -n -k +2 |
 tail -${num} >$stats
 
 ( awk '{print $1}' |
-  sed -e 's/landuse.//' -e 's/\..*/.tif/' -e "s,^,$modisdir," \
+  sed -e 's/landuse.//' -e 's/\..*/.tif/' -e "s,^,," \
 ) <$stats >$tilelist
 
