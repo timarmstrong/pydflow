@@ -32,13 +32,13 @@ def resultlist(channels, max_ready=None):
         if i == next_id:
             yield res
             next_id += 1
-            while done != [] and done[0].ix == next_id:
+            while len(done) > 0 and done[0].ix == next_id:
                 ho = heapq.heappop(done)
                 yield ho.item
                 next_id += 1
         else:
             heapq.heappush(done, HeapObj(i, res))
-    while done != []:
+    while len(done) > 0:
         yield heapq.heappop(done).item
         
 def resultset(channels, channel_ids=None, max_ready=None):
@@ -157,7 +157,7 @@ def dynreduce(reducefun, args):
     return finishedq.get()
 
 
-def getall(*args):
+def waitall(*args):
     """
     args can be channels or iterable containers of channels
     """

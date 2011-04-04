@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 # Read a MODIS .tif file and return a histogram of pixel values.
 # The pixel values signify land use for that region (see legend in notes)

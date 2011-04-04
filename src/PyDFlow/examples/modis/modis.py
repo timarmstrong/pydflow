@@ -1,6 +1,20 @@
+#!/usr/bin/python
 import re #regex module
 from PyDFlow import *
 from PyDFlow.app import * 
+import os.path 
+import PyDFlow.app.paths as app_paths
+import sys
+
+if len(sys.argv) != 2:
+    print "USAGE: modis.py <directory with modis*.tif files>"
+    exit(1)
+modisdir = sys.argv[1]
+
+# Add the modis shell scripts to PyDFlow search path
+srcdir = os.path.dirname(__file__)
+app_paths.add_path(os.path.join(srcdir, "bin"))
+
 
 
 imagefile = localfile.subtype()
@@ -8,19 +22,19 @@ landuse = localfile.subtype()
 
 @app((landuse), (imagefile, int)) 
 def getLandUse(input, sortfield):
-    return App("getlanduse", input, sortfield, stdout=output)
+    return App("getlanduse.sh", input, sortfield, stdout=outfiles[0])
 
 @app((localfile, localfile), (int, int, Multiple(landuse)))
 def analyzeLandUse(usetype, maxnum, *inputs):
-    return App("analyzelanduse", outfiles[0], outfiles[1], usetype, maxnum, *inputs)
+    return App("analyzelanduse.sh", outfiles[0], outfiles[1], usetype, maxnum, modisdir, *inputs)
 
 @app((imagefile), (imagefile))
 def colormodis(input):
-    return App("colormodis", input, outputs[0])
+    return App("colormodis.sh", input, outfiles[0])
 
-# Both read only arrays
-geos = GlobMapper(imagefile, "/home/wilde/bigdata/data/modis*.tif")
-land = SubMapper(landuse, geos, "(h..v..)", "\\1.landuse.byfreq")
+# Mappers return read-only array.  Both also can take keyword arguments
+geos = GlobMapper(imagefile, modisdir + "/modis*.tif")
+land = SubMapper(landuse, geos, "(h..v..).*$", "\\1.landuse.byfreq")
 
 # Find the land use of each modis tile
 # enumerate is a python built-in which generates indices
@@ -45,7 +59,6 @@ UsageTypeURBAN=13;
 bigurban = localfile("topurban.txt")
 urbantiles = localfile("urbantiles.txt")
 
-#TODO: << to handle tuples
 (bigurban, urbantiles) << analyzeLandUse(UsageTypeURBAN, 10, *land);
 
 # Map the files to an array.  
@@ -57,11 +70,11 @@ urbanfilenames = [line.strip() for line in urbantiles.open().readlines()]
 urbanfiles = map(imagefile, urbanfilenames) 
 
 # Create a set of recolored images for just the urban tiles
-
 recoloredImages = []
 for uf in urbanfiles:
     recoloredPath = uf.path().replace(".tif", ".recolored.tif")
-    recoloredImages.append(imagefile(recoloredPath) << colormodis(uf))
+    recolored = imagefile(recoloredPath) << colormodis(uf)
+    recoloredImages.append(recolored)
 
 # Start everything running and wait until completion
-getall(recoloredImages)
+waitall(recoloredImages)

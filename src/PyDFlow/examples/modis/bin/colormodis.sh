@@ -1,4 +1,4 @@
-#
+#!/bin/sh
 # Return a new modis files with the 0-16 pixel values changed to
 # colors that reflect the land use of that region. (See legend)
 #

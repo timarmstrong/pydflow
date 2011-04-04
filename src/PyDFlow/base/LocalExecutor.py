@@ -26,6 +26,7 @@ from PyDFlow.base.states import *
 from PyDFlow.base.mutex import graph_mutex
  
 import random
+from PyDFlow.base.exceptions import NoDataException
 
 
 #==============================================#
@@ -96,29 +97,46 @@ def exec_async(channel):
 def fail_task(task, continuation, exceptions):
     # assume holding lock
     # traverse task graph to find all dependencies
-    tasks = [task]
+    fail_tasks([task], continuation, exceptions)
+
+def fail_tasks(tasks, continuation, exceptions):
+    # assume holding lock
+    # traverse task graph to find all dependencies
+    already_seen = set()
     while len(tasks) != 0:
         task = tasks.pop()
+        if task in already_seen:
+            continue
         task._fail(exceptions)
+        already_seen.add(task)
         for ch in task._outputs:
             ch._fail(exceptions)
             tasks.extend(ch._out_tasks)
 
+def fail_channel(channel, exceptions):
+    channel._fail(exceptions)
+    if channel._out_tasks is not None:
+        fail_tasks(channel._out_tasks)
 
 def makeframe(channel, continuation):
     """
     Make a deque frame from a task. Graph mutex should be held.
     """
     deps = []
-    if channel._in_tasks is not None:
-        for task in channel._in_tasks:
-            for spec, ch in task._input_iter():
-                #TODO: support lazy/strict
-                if not spec.isRaw() and not ch._try_readable():
-                    if ch._state == CH_ERROR:
-                        fail_task(task, continuation, ch._exception.causes)
-                        return None
-                    deps.append(ch)
+    try:
+        if channel._in_tasks is not None:
+            for task in channel._in_tasks:
+                for spec, ch in task._input_iter():
+                    #TODO: support lazy/strict
+                    if not spec.isRaw() and not ch._try_readable():
+                        if ch._state == CH_ERROR:
+                            fail_task(task, continuation, ch._exception.causes)
+                            return None
+                        deps.append(ch)
+    except NoDataException, ex:
+        # If input channel can't be read
+        fail_channel(channel, [ex])
+        return None
     return (channel, deps, continuation)
 
 class WorkerThread(threading.Thread):

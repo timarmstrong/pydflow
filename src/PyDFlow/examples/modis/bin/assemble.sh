@@ -1,3 +1,4 @@
+#!/bin/sh
 output=$1
 shift
 inputs=$(ls -1 $*)

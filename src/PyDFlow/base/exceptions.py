@@ -6,18 +6,21 @@ class UnimplementedException(Exception):
         self.parameter = value
     def __repr__(self):
         return repr(self.parameter)
+    __str__ = __repr__
 
 class NoDataException(Exception):
     def __init__(self, value):
         self.parameter = value
     def __repr__(self):
         return repr(self.parameter)
+    __str__ = __repr__
     
 class EmptyPlaceholderException(Exception):
     def __init__(self, value):
         self.parameter = value
     def __repr__(self):
         return repr(self.parameter)
+    __str__ = __repr__
     
 
 class ExecutionException(Exception):
@@ -38,8 +41,7 @@ class ExecutionException(Exception):
     def __repr__(self):
         return 'Execution Exception caused by: \n' + ('\n\n'.join([repr(ex) for ex in self.causes]))
     
-    def __str__(self):
-        return self.__repr__()
+    __str__ = __repr__
     
     def add_exception(self, exception):
         self.causes.append(exception)

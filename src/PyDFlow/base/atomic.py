@@ -90,7 +90,7 @@ class AtomicChannel(Channel):
         Channel can only be written to once, by a single writer.
         """
         #TODO: proper exception types
-        if self._in_tasks != []:
+        if len(self._in_tasks) > 0:
             raise Exception("Multiple tasks writing to an AtomicChannel")
         elif self._state != CH_CLOSED:
             raise Exception("Adding an input to an open AtomicChannel")
@@ -240,7 +240,7 @@ class AtomicChannel(Channel):
         if self._state in (CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW):
             return True
         elif self._state in (CH_CLOSED, CH_DONE_DESTROYED):
-            if self._in_tasks == []:
+            if len(self._in_tasks) == 0:
                 if self._bound is Unbound:
                     raise NoDataException("Unbound channel with no input tasks was forced.")
                 else:
@@ -250,7 +250,10 @@ class AtomicChannel(Channel):
                         self._set(self._bound)
                         return True
                     else: 
-                        raise NoDataException("Bound channel with no input tasks and no associated data was forced.")
+                        raise NoDataException(("Bound channel with no input tasks " + 
+                                              "and no associated data was forced. " +
+                                             "Channel was bound to" + repr(self._bound)))
+                        
         elif self._state in (CH_ERROR,):
             return False
         else:
@@ -268,9 +271,16 @@ class AtomicChannel(Channel):
             self._done_callbacks.append(done_callback)
 
         if self._state in (CH_CLOSED, CH_DONE_DESTROYED):
-            if self._bound is not Unbound and self._in_tasks == []:
-                self._try_readable()
-            elif self._in_tasks != []:
+            if self._bound is not Unbound and len(self._in_tasks) == 0:
+                try:
+                    self._try_readable()
+                except NoDataException, ex:
+                    # Don't need to propagate error: this method only run if this
+                    # channel is forced manually
+                    self._fail([ex])
+                    self._notify_done()
+                
+            elif len(self._in_tasks) > 0:
                 # Enable task to be run, but
                 # input tasks should be run first
                 self._state = CH_CLOSED_WAITING
@@ -304,5 +314,5 @@ class AtomicChannel(Channel):
         """
         return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
             or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
-                and self._bound is not None and self._in_tasks == [])
+                and self._bound is not None and len(self._in_tasks) == 0)
 

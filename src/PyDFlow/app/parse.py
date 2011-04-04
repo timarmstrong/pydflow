@@ -40,7 +40,7 @@ def parse_cmd_string(cmd_string, path_dict):
             # not in quote
             if c.isspace(): # end of current token
                 if in_token: # if this was the end of a token
-                    if tokens == []:
+                    if len(tokens) == 0:
                         # don't process command name
                         tokens.append(''.join(curr_tok))
                         first = False
@@ -61,7 +61,7 @@ def parse_cmd_string(cmd_string, path_dict):
     if in_quote:
         raise Exception("Unclosed quote %s in command string: %s" % (in_quote, cmd_string))
     if in_token:
-        if tokens == []:
+        if len(tokens) == 0:
             # don't process command name
             tokens.append(''.join(curr_tok))
             first = False
