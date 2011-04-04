@@ -1,5 +1,4 @@
 #!/usr/bin/python
-import re #regex module
 from PyDFlow import *
 from PyDFlow.app import * 
 import os.path 
@@ -10,7 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 if len(sys.argv) not in (2, 3):
-    print "USAGE: modis.py <directory with modis*.tif files> [optional output directory]" 
+    print "USAGE: modis.py <directory with modis *.tif files> [optional output directory]" 
     exit(1)
 modisdir = sys.argv[1]
 if len(sys.argv) == 3:
@@ -41,7 +40,7 @@ def colormodis(input):
     return App("colormodis.sh", input, outfiles[0])
 
 # Mappers return read-only array.  Both also can take keyword arguments
-geos = GlobMapper(imagefile, modisdir + "/modis*.tif")
+geos = GlobMapper(imagefile, modisdir + "/*.tif")
 land = SubMapper(landuse, geos, "(h..v..).*$", "\\1.landuse.byfreq", directory=outputdir)
 
 # Find the land use of each modis tile
