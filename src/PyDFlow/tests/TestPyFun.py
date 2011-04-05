@@ -339,7 +339,21 @@ class TestPyFun(PyDFlowTest):
         self.assertExecutionException(MyException, res3.get)
     
     
+    def testClass(self):
+        class Test:
+            def __init__(self, num):
+                self.num = num
+                
+            @func((Int),(None, Int))
+            def _add(self, x):
+                return self.num + x
             
+            def add(self, n):
+                res = Int(0)
+                for i in range(n):
+                    res = self._add(self,res)
+                return res.get()
+        self.assertEquals(Test(1).add(5), 5)
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
