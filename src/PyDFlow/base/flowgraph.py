@@ -157,7 +157,7 @@ class Task(object):
             # TODO: delete _inputs_ready?
             if hasattr(self, '_ready_callbacks'):
                 for c in self._ready_callbacks:
-                    c()
+                    c(self)
                 delattr(self, '_ready_callbacks')
 
     def _output_replace(self, old, new):
