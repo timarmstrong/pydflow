@@ -1,36 +1,47 @@
-* optionally remove type checking
+Optionally remove type checking:
+* Dynamically determine whether an arg is a channel or not
 
-* Control flow structures 
 
-* App procedures: local and remote files
+Control flow structures:
+* If-then-else (need to allow mix of lazy and strict args)
+* Custom control flow procedures implemented in Python
+
+App procedures:
+------------------
+* New backends
+	- Coasters - talking directly to workers
+	- Swift?
+	- CIEL
+	- JETS	
+* local and remote files
+
+GPU support:
+------------
 * CUDA
+* OpenCL
+
+
+Misc:
+----
 * Stack overflow avoidance?
-
-
 * register named input
 
+Arg Handling:
+-------------
+* Optional args?
+* Lists args via Multiple
+* Verify() method on type to check that contents are of correct type?
 
-Typing:
-* Verify method to check that contents are of correct type?
 
-Recursion
-* Think about how to allow @func tasks to extend the DAG
-    - Note: determined that function name resolves to wrapped 
-        function in function body
-    - Does it make sense to somehow logically "unpack" the result if
-        there is a channel inside a channel
-    - Need to get current thread to work on another task.
-
-Programming Abstractions
-* ResultBag, ResultList
+Programming Abstractions:
+-------------------------
 * Parameter Sweep Primitives
     - combinations, permutations, etc combined with imap
-* foldr, foldl, associative reduce (reduction tree), 
-    associative commutative reduce (build reduction tree in order of completion)
-* random number generations
+* random number generation
 
 
 Makefile:
+----------
 * Implicit rules of Type -> Type
 @ruleapp((OFile), (CFile), rename=('%.o', '%.c')) renamerexp?
 * register files as sources or intermediates
