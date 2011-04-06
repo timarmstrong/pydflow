@@ -24,7 +24,7 @@ app_paths.add_path(os.path.join(srcdir, "bin"))
 
 
 
-imagefile = localfile.subtype()ls
+imagefile = localfile.subtype()
 
 landuse = localfile.subtype()
 
