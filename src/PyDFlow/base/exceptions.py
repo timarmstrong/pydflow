@@ -23,6 +23,12 @@ class EmptyPlaceholderException(Exception):
     __str__ = __repr__
     
 
+class InvalidReplaceException(Exception):
+    def __init__(self, value):
+        self.parameter = value
+    def __repr__(self):
+        return repr(self.parameter)
+    __str__ = __repr__
 class ExecutionException(Exception):
     """
     A set of exceptions

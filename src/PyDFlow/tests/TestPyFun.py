@@ -15,6 +15,8 @@ import PyDFlow.examples.PyFun as ex
 from PyDFlow.base import LocalExecutor
 from PyDFlow.base.patterns import resultset
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
+from PyDFlow.base.exceptions import InvalidReplaceException
+import sys
 
 Int = future.subtype()
 String = future.subtype()
@@ -147,6 +149,36 @@ class TestPyFun(PyDFlowTest):
         Int2 = Int.subtype()
         i = Int2()
         self.assertRaises(FlTypeError, lambda : i << one())
+        
+    def testInvalidReplace1(self):
+        f = Int()
+        x = one()
+        
+        x.get()
+        self.assertRaises(InvalidReplaceException, lambda : f << x)
+        self.assertEquals(x.get(), 1)
+        
+    def testInvalidReplace2(self):
+        f = Int()
+        x = one()
+        x.force() # should raise error even if f not filled
+        self.assertRaises(InvalidReplaceException, lambda : f << x)
+    
+    def testInvalidReplace3(self):
+        f = Int()
+        x = one()
+        x.force() # should raise error even if f not filled
+        time.sleep(0.1) # make sure task finishes first
+        self.assertRaises(InvalidReplaceException, lambda : f << x)
+        self.assertEquals(x.get(), 1)    
+    
+    def testInvalidReplace4(self):
+        f = Int()
+        # make sure this thread runs first
+        x = just_sleep(0.1)
+        x.force() # should raise error even if f not filled
+        self.assertRaises(InvalidReplaceException, lambda : f << x)
+        self.assertEquals(x.get(), 0)    
         
     def testTypesMulti(self):
         self.assertRaises(FlTypeError, cat2, String("sdf"), Int("sdf"))

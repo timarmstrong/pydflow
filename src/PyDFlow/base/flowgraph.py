@@ -265,6 +265,12 @@ class Channel(flvar):
         that all tasks with output going into other are redirected 
         here.
         """
+        if self._state != CH_CLOSED:
+            #TODO: we could try to resolve this situation
+            raise InvalidReplaceException("Cannot redirect task output from " +
+                        "channel %s to channel %s as first channel has been forced, is being written"
+                        "to, or already has data" % (repr(self), repr(other)))
+        
         # typecheck
         # TODO: thisworks, but need tochange code to clarify what is conceptually happening
         validate_swap((self,), (other,))
