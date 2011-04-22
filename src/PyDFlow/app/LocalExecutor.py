@@ -3,6 +3,7 @@
 '''
 from __future__ import with_statement
 from PyDFlow.app.exceptions import ExitCodeException, AppLaunchException
+import time
 """
 Refactoring plan:
 
@@ -25,9 +26,9 @@ import logging
 import paths
 
 #TODO: no polling?
-POLL_INTERVAL = 0.1 # seconds between polling tasks when active
+POLL_INTERVAL = 0.05 # seconds between polling tasks when active
 #TODO: get info about number of processors
-MAX_RUNNING = 5
+MAX_RUNNING = 2
 
 LIFO = False
 
@@ -60,6 +61,7 @@ class MonitorThread(threading.Thread):
     
     def run(self):
         while True:
+            print 'loop'
             # If there are no apps running, we just need to wait for something to
             # be added
             if len(self.active_apps) == 0:
@@ -99,12 +101,16 @@ class MonitorThread(threading.Thread):
                     # callback: TODO: should I have a separate thread for these?
                     app.do_callback()
 
-            # Wait either the POLL_INTERVAL, or until there is work added to the queue
-            global work_added
-            work_added.acquire()
-            if self.queue.empty():
-                work_added.wait(POLL_INTERVAL)
-            work_added.release()
+            if len(self.active_apps) >= MAX_RUNNING:
+                t = None
+                time.sleep(POLL_INTERVAL)
+            else:
+                # Wait either the POLL_INTERVAL, or until there is work added to the queue
+                global work_added
+                work_added.acquire()
+                if self.queue.empty():
+                    work_added.wait(POLL_INTERVAL)
+                work_added.release()
 
 
 def openFile(fp, mode):
