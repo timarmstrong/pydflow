@@ -54,49 +54,50 @@ def remove_ext(path, ext):
         else:
             return path
 
-
-def process_bands(bands, header, raw_images):
-    
-    projected = [Image(path.join(bands, 'proj', remove_ext(path.basename(r.path()), ".gz")))
-                    for r in raw_images] 
-    
-    SubMapper(Image, raw_images, "raw", "proj")
-
-    for proj, raw_img in zip(projected, raw_images):
-        #TODO: ProjectPP?
-        #projected[i] << mProject(header, raw_img)
-        proj << mProjectPP(raw_img, header)
-
-    proj_table = Table(path.join(bands, 'proj', "pimages.tbl")) << mImgtbl(*projected)
-
-    band_img = Image(path.join(bands, bands+".fits"))
-    band_img << mAdd(proj_table, header, *projected)
-    return band_img
-
     
 header = MosaicData(path.join(srcdir, "pleiades.hdr"))
 allbands = ['DSS2B', 'DSS2R', 'DSS2IR']
 img_tables = []
 band_imgs = []
 
-fetch = False
-if fetch:
-    for bands in allbands:
-        make_directories(bands)
-        img_table = Table(path.join(bands, 'raw', 'remote.tbl'))
-        img_table << mArchiveList("dss", bands,"56.5 23.75", dims[0], dims[1])
-        img_tables.append(img_table)
+refetch = False
+
+# Find out the image files we'll need
+for bands in allbands:
+    make_directories(bands)
+    img_table = Table(path.join(bands, 'raw', 'remote.tbl'))
+    img_table << mArchiveList("dss", bands,"56.5 23.75", dims[0], dims[1])
+    img_tables.append(img_table)
     
-    for bands, tbl in resultset(img_tables, allbands):
-        # Download images separately by splitting table
-        x = list(read_remote_table(tbl.get()))
-        raw_images = [Image(path.join(bands, 'raw', fname)) << mArchiveGet(url)
-                for url, fname in  x]
-        band_imgs.append(process_bands(bands, header, raw_images))
-else:
-    for bands in allbands:
-        raw_images = GlobMapper(Image, path.join(bands, "raw/*.fits.gz"))    
-        band_imgs.append(process_bands(bands, header, raw_images))
+for bands, tbl in resultset(img_tables, allbands):
+    # Download images separately
+    raw_images = []
+    for url, fname in read_remote_table(tbl.get()):
+        raw_path = path.join(bands, 'raw', fname)
+        raw_image = Image(raw_path)
+        if refetch or not path.exists(raw_path): 
+            raw_image << mArchiveGet(url)
+        raw_images.append(raw_image)
+    
+        projected = [Image(path.join(bands, 'proj', remove_ext(path.basename(r.path()), ".gz")))
+                    for r in raw_images] 
+    
+    # Now project the images
+    SubMapper(Image, raw_images, "raw", "proj")
+
+    for proj, raw_img in zip(projected, raw_images):
+        #TODO: ProjectPP?
+        #projected[i] << mProject(header, raw_img)
+        proj << mProject(raw_img, header)
+
+    proj_table = Table(path.join(bands, 'proj', "pimages.tbl")) 
+    proj_table << mImgtbl(*projected)
+
+    # Now add the projected images
+    band_img = Image(path.join(bands, bands+".fits"))
+    band_img << mAdd(proj_table, header, *projected)
+
+    band_imgs.append(band_img)
     
     
 res = JPEG("DSS2_BRIR.jpeg") << mJPEGrgb(band_imgs[2], 
