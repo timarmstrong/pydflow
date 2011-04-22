@@ -116,7 +116,7 @@ def fail_tasks(tasks, continuation, exceptions):
 def fail_channel(channel, exceptions):
     channel._fail(exceptions)
     if channel._out_tasks is not None:
-        fail_tasks(channel._out_tasks)
+        fail_tasks(channel._out_tasks, [], exceptions)
 
 def makeframe(channel, continuation):
     """
