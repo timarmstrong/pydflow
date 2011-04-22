@@ -61,7 +61,6 @@ class MonitorThread(threading.Thread):
     
     def run(self):
         while True:
-            print 'loop'
             # If there are no apps running, we just need to wait for something to
             # be added
             if len(self.active_apps) == 0:
