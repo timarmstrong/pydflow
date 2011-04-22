@@ -88,7 +88,24 @@ class Output(object):
         
 class OutputGen(object):
     def __getitem__(self, key):
-        return Output(key)
+        if isinstance(key, slice):
+            # Return a list slice
+            start = key.start
+            if start is None:
+                start = 0
+            step = key.step
+            if step is None:
+                step = 1
+            stop = key.stop
+            if (stop - start) * step < 0:
+                # step goes in wrong direction
+                return []
+            if step == 0:
+                raise ValueError("slice step cannot be zero") 
+            return [Output(i) for i in xrange(start, stop, step)]
+                 
+        else:
+            return Output(key)
 # user can index into this object to represent positional output args
 outfiles = OutputGen()
 

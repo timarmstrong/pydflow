@@ -27,7 +27,7 @@ import paths
 #TODO: no polling?
 POLL_INTERVAL = 0.1 # seconds between polling tasks when active
 #TODO: get info about number of processors
-MAX_RUNNING = 10
+MAX_RUNNING = 5
 
 LIFO = False
 

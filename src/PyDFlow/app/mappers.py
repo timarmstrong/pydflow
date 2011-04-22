@@ -62,8 +62,8 @@ class ReadOnlyArray(object):
         super(ReadOnlyArray, self).__setattr__("_list", list)
         
     def __getitem__(self, key):
-        if not isinstance(key, ( int, long ) ):
-            raise TypeError("Key should be integral")
+        if not isinstance(key, ( int, long, slice ) ):
+            raise TypeError("Key should be integral or slice")
         return self._list[key]
     
     def __setitem__(self, key, value):

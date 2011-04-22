@@ -3,6 +3,14 @@ from montage_types import *
 import os.path as path
 from PyDFlow import Multiple
 
+
+import PyDFlow.app.paths as app_paths
+
+# Add the montage binaries to PyDFlow search path
+srcdir = path.dirname(__file__)
+app_paths.add_path(path.join('/var/tmp/code/Montage_v3.3', "bin"))
+app_paths.add_path('/var/tmp/code/SwiftApps/Montage/scripts')
+
 @app((Image) ,(Table, MosaicData, Multiple(Image)))
 def mAdd(img_tbl, hdr, *imgs):
     # returns mosaic from adding together images.
@@ -81,12 +89,43 @@ def mProject(raw_img, hdr):
     proj_img = outfiles[0]
     return App("mProject", "-X", raw_img, proj_img, hdr)
 
+@app((Table), (str, str, str, None, None ))
+def mArchiveList(survey, band, obj_or_loc, width, height):
+    """
+    From montage docs:
+    survey: e.g.
+        * 2MASS
+        * DSS
+        * SDSS
+        * DPOSS
+    band:
+        Case insensitive - can be one of:
+        * (2MASS) j, h, k
+        * (SDSS) u, g, r, i, z
+        * (DPOSS) f, j, n
+        * (DSS) DSS1, DSS1R, DSS1B, DSS2, DSS2B, DSS2R, DSS2IR
+    object|location:
+        Object name or coordinate string to be resolved by NED
+    width:  
+        Width of area of interest, in degrees
+    height:
+        Height of area of interest, in degrees
+    """
+    return App("mArchiveList", survey, band, obj_or_loc, width, height, outfiles[0])
 
-def mArchiveList():
-    pass
+@app((localfile), (Table))
+def mArchiveExec(imgtbl):
+    """
+    Return value is directory
+    """
+    return App("mArchiveExec_wrap", imgtbl, outfiles[0])
 
-def mArchiveExec():
-    pass
+@app((Image), (str))
+def mArchiveGet(url):
+    """
+    Get an image from repo
+    """
+    return App("mArchiveGet", url, outfiles[0])
 
 # Not yet converted:
 
