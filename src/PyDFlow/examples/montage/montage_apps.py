@@ -89,7 +89,7 @@ def mProject(raw_img, hdr):
     proj_img = outfiles[0]
     return App("mProject", "-X", raw_img, proj_img, hdr)
 
-@app((Table), (str, str, str, None, None ))
+@app((RemoteTable), (str, str, str, None, None ))
 def mArchiveList(survey, band, obj_or_loc, width, height):
     """
     From montage docs:
@@ -127,19 +127,14 @@ def mArchiveGet(url):
     """
     return App("mArchiveGet", url, outfiles[0])
 
-# Not yet converted:
 
-#app ( Status stat ) mFitplane( Image diff_img )
-#{
-#//    mFitplane "-s" @stat @diff_img;
-#    mFitplane_wrap "-s" @stat @diff_img;
-#}
+@app((Status), (Image))
+def mFitplane(diff_img):
+    return App("mFitplane", "-s", outfiles[0], diff_img)
 
-#app ( Table diff_tbl ) mOverlaps( Table img_tbl )
-#{
-#    mOverlaps @img_tbl @diff_tbl;
-#}
-
+@app((Table), (Table))
+def mOverlaps(img_tbl):
+    return App("mOverlaps", img_tbl, outfiles[0])
 
 # Util scripts
 #app ( Table back_tbl ) Background_list( Table imgs_tbl, Table corrs_tbl )

@@ -8,28 +8,9 @@ from PyDFlow.base.patterns import resultset
 
 srcdir = os.path.dirname(__file__)
 
-def make_directories(bands):
-    try:
-        os.mkdir(bands)
-    except OSError:
-        pass
-    try:
-        os.mkdir(path.join(bands, "raw"))
-    except OSError:
-        pass
-    try:    
-        os.mkdir(path.join(bands, "proj"))
-    except OSError:
-        pass
 
-def read_img_table(tbl):
-    """ Returns a list of (url, image name) pairs from table """
-    lines = open(tbl).readlines()[3:] # ignore 3 line header
-    for line in lines:
-        toks = line.split()
-        yield (toks[-2], toks[-1])
             
-def remove_ext(path, ext):
+def strip_ext(path, ext):
     """ Strip given file extension if present """
     n = len(ext)
     if len(path) >= n:
@@ -50,10 +31,9 @@ def archive_fetch(bands):
     Ask NASA server which image files we'll need for this patch of
     the sky and these frequency bands
     """
-    make_directories(bands)
-    img_table = Table(path.join(bands, 'raw', 'remote.tbl'))
+    img_table = RemoteTable(path.join(bands, 'raw', 'remote.tbl'))
     img_table << mArchiveList("dss", bands,"56.5 23.75", dims[0], dims[1])
-    img_tables.append(img_table)
+    return img_table
 
 
 def process_one_band(bands, tbl):
@@ -64,7 +44,7 @@ def process_one_band(bands, tbl):
     """
     # Download images from server separately
     raw_images = []
-    for url, fname in read_img_table(tbl.get()):
+    for url, fname in tbl.read_urls():
         # raw images go in the raw subdirectory
         raw_path = path.join(bands, 'raw', fname)
         raw_image = Image(raw_path)
@@ -74,7 +54,8 @@ def process_one_band(bands, tbl):
     
     # projected images go in the proj subdirectory
     projected = [Image(path.join(bands, 'proj', 
-                    remove_ext(path.basename(r.path()), ".gz")))
+                    # remove .gz suffix for new file
+                    strip_ext(path.basename(r.path()), ".gz"))) 
                 for r in raw_images]
     # Now reproject the images 
     for proj, raw_img in zip(projected, raw_images):
@@ -86,6 +67,7 @@ def process_one_band(bands, tbl):
     # Now combine the projected images into a montage
     band_img = Image(path.join(bands, bands+".fits"))
     band_img << mAdd(proj_table, header, *projected)
+    return band_img
 
 # Get info for the three bands we are interested in
 allbands = ['DSS2B', 'DSS2R', 'DSS2IR']

@@ -1,13 +1,23 @@
 from PyDFlow.app import *
 
-Header = localfile.subtype()
-Image = localfile.subtype()
-MosaicData = localfile.subtype()
+MosaicData = localfile.subtype() # Text file with mosaic metadata
 Table = localfile.subtype()
-JPEG = localfile.subtype()
-Status = localfile.subtype()
+Image = localfile.subtype() # Image tile in FITS format with image metadata
+JPEG = localfile.subtype() # Image in JPEG format
+Status = localfile.subtype() # mFitplane status file
 
 
+
+class RemoteTable(Table):
+    """
+    Text table describing set of images
+    """
+    def read_urls(self):
+        """ Returns a list of (url, image name) pairs from table """
+        lines = self.open().readlines()[3:] # ignore 3 line header
+        for line in lines:
+            toks = line.split()
+            yield (toks[-2], toks[-1])
 
 class BackgroundStruct(object):
     def __init__(self, fname, a, b, c):
