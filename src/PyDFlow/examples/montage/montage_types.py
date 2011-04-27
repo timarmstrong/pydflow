@@ -1,14 +1,12 @@
 from PyDFlow.app import *
 
 MosaicData = localfile.subtype() # Text file with mosaic metadata
-Table = localfile.subtype()
-Image = localfile.subtype() # Image tile in FITS format with image metadata
+MTable = localfile.subtype()
+MImage = localfile.subtype() # Image tile in FITS format with image metadata
+MStatus = localfile.subtype() # mFitplane status file
 JPEG = localfile.subtype() # Image in JPEG format
-Status = localfile.subtype() # mFitplane status file
 
-
-
-class RemoteTable(Table):
+class RemoteMTable(MTable):
     """
     Text table describing set of images
     """

@@ -11,7 +11,7 @@ srcdir = path.dirname(__file__)
 app_paths.add_path(path.join('/var/tmp/code/Montage_v3.3', "bin"))
 app_paths.add_path('/var/tmp/code/SwiftApps/Montage/scripts')
 
-@app((Image) ,(Table, MosaicData, Multiple(Image)))
+@app((MImage) ,(MTable, MosaicData, Multiple(MImage)))
 def mAdd(img_tbl, hdr, *imgs):
     # returns mosaic from adding together images.
     #note: assumes that images are only .fit file in their directory
@@ -19,44 +19,44 @@ def mAdd(img_tbl, hdr, *imgs):
     return App("mAdd", "-p", path.dirname(imgs[0]), "-n", img_tbl, hdr, mos)
 
 
-@app((Image) ,(Image, float, float, float))
+@app((MImage) ,(MImage, float, float, float))
 def mBackground(img, a, b, c):
     bg_img = outfiles[0]
     return App("mBackground", "-n", img, bg_img, a, b, c)
 
 
-@app((Table), (Table, Table))
+@app((MTable), (MTable, MTable))
 def mBgModel(img_tbl, fits_tbl):
     corr_tbl = outfiles[0]
     return App("mBgModel", img_tbl, fits_tbl, corr_tbl)
 
 
-@app((Table), (Table, Multiple(Status)))
+@app((MTable), (MTable, Multiple(MStatus)))
 def mConcatFit(status_tbl, *stats):
     fits_tbl = outfiles[0]
     return App("mConcatFit", status_tbl, fits_tbl, path.dirname(stats[0]))
 
 
-@app((Image), (Image, Image, MosaicData))
+@app((MImage), (MImage, MImage, MosaicData))
 def mDiff(proj_img_1, proj_img_2, hdr):
     diff_img = outfiles[0]
     return App("mDiff_wrap", "-n", proj_img_1, proj_img_2, diff_img, hdr)
 #    mDiff "-n" @proj_img_1 @proj_img_2 @diff_img @hdr;
 
 
-@app((Table), (Multiple(Image)))
+@app((MTable), (Multiple(MImage)))
 def mImgtbl(*imgs):
     img_tbl = outfiles[0]
     return App("mImgtbl", path.dirname(imgs[0]), img_tbl)
 
 
-@app((MosaicData), (Table))
+@app((MosaicData), (MTable))
 def mMakeHdr(img_tbl):
     hdr = outfiles[0]
     return App("mMakeHdr", img_tbl, hdr)
 
 
-@app((JPEG), (Image))
+@app((JPEG), (MImage))
 def mJPEG(mos_img):
     """
     Convert fit to grayscale
@@ -65,7 +65,7 @@ def mJPEG(mos_img):
     return App("mJPEG", "-gray", mos_img, "20%", "99.98%", "loglog", "-out",
         mos_img_jpg)
 
-@app((JPEG), (Image, Image, Image))
+@app((JPEG), (MImage, MImage, MImage))
 def mJPEGrgb(rimg, gimg, bimg):
     """
     Convert fit to rgb
@@ -79,17 +79,17 @@ def mJPEGrgb(rimg, gimg, bimg):
 
 
 
-@app((Image), (Image, MosaicData))
+@app((MImage), (MImage, MosaicData))
 def mProjectPP(raw_img, hdr):
     proj_img = outfiles[0]
     return App("mProjectPP", "-X", raw_img, proj_img, hdr)
 
-@app((Image), (Image, MosaicData))
+@app((MImage), (MImage, MosaicData))
 def mProject(raw_img, hdr):
     proj_img = outfiles[0]
     return App("mProject", "-X", raw_img, proj_img, hdr)
 
-@app((RemoteTable), (str, str, str, None, None ))
+@app((RemoteMTable), (str, str, str, None, None ))
 def mArchiveList(survey, band, obj_or_loc, width, height):
     """
     From montage docs:
@@ -113,14 +113,14 @@ def mArchiveList(survey, band, obj_or_loc, width, height):
     """
     return App("mArchiveList", survey, band, obj_or_loc, width, height, outfiles[0])
 
-@app((localfile), (Table))
+@app((localfile), (MTable))
 def mArchiveExec(imgtbl):
     """
     Return value is directory
     """
     return App("mArchiveExec_wrap", imgtbl, outfiles[0])
 
-@app((Image), (str))
+@app((MImage), (str))
 def mArchiveGet(url):
     """
     Get an image from repo
@@ -128,22 +128,22 @@ def mArchiveGet(url):
     return App("mArchiveGet", url, outfiles[0])
 
 
-@app((Status), (Image))
+@app((MStatus), (MImage))
 def mFitplane(diff_img):
     return App("mFitplane", "-s", outfiles[0], diff_img)
 
-@app((Table), (Table))
+@app((MTable), (MTable))
 def mOverlaps(img_tbl):
     return App("mOverlaps", img_tbl, outfiles[0])
 
 # Util scripts
-#app ( Table back_tbl ) Background_list( Table imgs_tbl, Table corrs_tbl )
+#app ( MTable back_tbl ) Background_list( MTable imgs_tbl, MTable corrs_tbl )
 #{
 #    Background_list @imgs_tbl @corrs_tbl @back_tbl;
 #}
 
 
-#app ( Table stat_tbl ) create_status_table( Table diff_tbl )
+#app ( MTable stat_tbl ) create_status_table( MTable diff_tbl )
 #{
 #    create_status_table @diff_tbl @stat_tbl;
 #}

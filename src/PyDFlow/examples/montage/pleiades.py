@@ -31,7 +31,7 @@ def archive_fetch(bands):
     Ask NASA server which image files we'll need for this patch of
     the sky and these frequency bands
     """
-    img_table = RemoteTable(path.join(bands, 'raw', 'remote.tbl'))
+    img_table = RemoteMTable(path.join(bands, 'raw', 'remote.tbl'))
     img_table << mArchiveList("dss", bands,"56.5 23.75", dims[0], dims[1])
     return img_table
 
@@ -47,13 +47,13 @@ def process_one_band(bands, tbl):
     for url, fname in tbl.read_urls():
         # raw images go in the raw subdirectory
         raw_path = path.join(bands, 'raw', fname)
-        raw_image = Image(raw_path)
+        raw_image = MImage(raw_path)
         if refetch or not path.exists(raw_path): 
             raw_image << mArchiveGet(url)
         raw_images.append(raw_image)
     
     # projected images go in the proj subdirectory
-    projected = [Image(path.join(bands, 'proj', 
+    projected = [MImage(path.join(bands, 'proj', 
                     # remove .gz suffix for new file
                     strip_ext(path.basename(r.path()), ".gz"))) 
                 for r in raw_images]
@@ -65,7 +65,7 @@ def process_one_band(bands, tbl):
     proj_table = mImgtbl(*projected)
 
     # Now combine the projected images into a montage
-    band_img = Image(path.join(bands, bands+".fits"))
+    band_img = MImage(path.join(bands, bands+".fits"))
     band_img << mAdd(proj_table, header, *projected)
     return band_img
 
