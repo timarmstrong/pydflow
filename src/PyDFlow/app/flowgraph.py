@@ -16,6 +16,7 @@ import tempfile
 import shutil
 import os.path
 import logging
+import errno
 
 # Set of temp files not yet cleaned up
 # protect with global_mutex
@@ -143,8 +144,19 @@ class FileChannel(AtomicChannel):
             self._bound = self._mktmp()
             self._temp_created=True
         else:
-            #is bound, should be fine :)
-            pass
+            # make sure that directory exists so
+            # task can correctly create file
+            self._touch_file()
+        
+        
+
+    def _touch_file(self):
+        """
+        Only works if channel bound.
+        Will ensure that a file with the bound name can be
+        created by the task when it runs
+        """
+        raise UnimplementedException("_touch_file() not implemented for base file channel")
 
     def _mktmp(self):
         """
@@ -224,12 +236,28 @@ class LocalFileChannel(FileChannel):
     def __init__(self, *args, **kwargs):
         #TODO: expand bound path
         super(LocalFileChannel, self).__init__(*args, **kwargs)
+        if self._bound is not Unbound:
+            # Change to absolute path so that any subsequent changes
+            # to OS working directory won't cause issues'
+            self._bound = os.path.abspath(self._bound)
 
     def open(self):
         return open(self.get(), 'r')
 
     def _fileExists(self, file):
         return os.path.exists(file)
+    
+    def _touch_file(self):
+        try:
+            # recursive directory creation
+            os.makedirs(os.path.dirname(self._bound))
+        except OSError, e:
+            # doesn't matter if already exists
+            if e.errno == errno.EEXIST:
+                pass
+            else: 
+                raise
+
     
     def _mktmp(self):
         """

@@ -13,10 +13,11 @@ import os.path
 srcdir = os.path.dirname(__file__)
 app_paths.add_path(srcdir)
 
+app_count = 0
+
 intfile = localfile.subtype()
 sorted_intfile = intfile.subtype()
 
-app_count = 0
 
 @app((sorted_intfile), (intfile))
 def sort(file):

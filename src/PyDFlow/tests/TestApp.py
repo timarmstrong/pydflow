@@ -153,7 +153,8 @@ class TestApp(PyDFlowTest):
             (localfile(f) << write("sfsd")).get()
         
         mapped = GlobMapper(localfile, "myfile*.txt")
-        self.assertEqual(set([m.get() for m in mapped]), set(files))
+        expected = set([os.path.abspath(file) for file in files])
+        self.assertEqual(set([m.get() for m in mapped]), expected)
          
     
     def testInvalidOutput(self):
@@ -188,6 +189,25 @@ class TestApp(PyDFlowTest):
         def invalid():        
             return "echo 1"
         self.assertExecutionException(TypeError, invalid().get)    
+        
+    def testChWorkingDir(self):
+        """
+        Check that relative file names are robust to working directory
+        changes
+        """
+        f = open(".randomfilename", 'w')
+        f.write('Hello World\n')
+        f.close()
+        c = localfile(".randomfilename")
+        
+        olddir = os.getcwd()
+        os.chdir("/")
+        
+        try:
+            self.assertEquals(c.open().read(), "Hello World\n")
+        finally:
+            os.chdir(olddir)
+            os.remove(".randomfilename")
             
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
