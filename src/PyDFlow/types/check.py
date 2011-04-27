@@ -47,14 +47,17 @@ class FlTypeError(ValueError):
     def __init__(self, *args, **kwargs):
         ValueError.__init__(self, *args, **kwargs)
 
+NoDefault = object()
+
 class InputSpec(object):
     """
     Details of an input argument to a function
     """
-    def __init__(self, name, fltype):
+    def __init__(self, name, fltype, default_val):
         self.name = name
         self.fltype, self.raw, self.multi, self.lazy = unpack(fltype)
-
+        self.default_val = default_val
+        
     def __repr__(self):
         return 'flinput: %s %s' % (self.name, repr(self.fltype))
 
@@ -87,6 +90,7 @@ class TaskDescriptor(object):
         rawspec = inspect.getargspec(wrapped)
         arg_names = rawspec[0]
         remainder_name = rawspec[1]
+        
 
         if remainder_name is None:
             if len(arg_names) != len(self.input_types):
@@ -101,12 +105,20 @@ class TaskDescriptor(object):
                         and input type tuple length %d for function %s" % (
                         len(arg_names)+1, len(self.input_types), 
                         wrapped.__name__))
+        
+        # add default value information to arg spec
+        default_vals = rawspec[3]
+        if default_vals is None:
+            padded_default_vals = [NoDefault] * len(arg_names)
+        else:
+            default_padding = [NoDefault] * (len(arg_names) - len(default_vals))
+            padded_default_vals = default_padding + list(default_vals)
                 
         #TODO: validate not lazy if needed??
         # Build the input specification for the function using introspection
-        self.input_spec = [InputSpec( name, t) 
-                    for t, name 
-                    in zip(self.input_types, arg_names)]
+        self.input_spec = [InputSpec(name, t, default_val) 
+                    for t, name, default_val 
+                    in zip(self.input_types, arg_names, padded_default_vals)]
 
         if remainder_name is not None:
             self.input_spec.append(InputSpec(remainder_name,
@@ -197,47 +209,43 @@ def validate_inputs(input_spec, args, kwargs):
     If they do match, return the arguments marshalled into an array 
     with the arguments in the order of input_spec.
     Otherwise it will raise an FlTypeError
+    
+    TODO: use default value info in input spec to allow use of default arguments
     """
     # Check to see which go with the args (matched by position)
     # and which go with the kwargs
     arg_len = len(args)
     spec_len = len(input_spec)
-    if spec_len > 0 and input_spec[-1].isMulti():
-        # All args will be positional
-        if len(kwargs) != 0:
-            raise FlTypeError("Cannot provide positional arguments along with Multi():\
-                function was called with kwargs dict %s" % repr(kwargs))
-
-        rep_type = input_spec[-1].fltype
-        for i, arg in enumerate(args):
-            if i < spec_len - 1:
-                check_logicaltype(input_spec[i].fltype, arg, 
-                        input_spec[i].name)
-            else:
+    # Array to build list of args
+    # Process positional args first
+    # Assume all is ok, check_type will throw an exception
+    # if there is an issue
+    call_args = [check_logicaltype(spec.fltype, match)
+        for spec, match in zip(input_spec, args)]
+    
+    if arg_len > spec_len:
+        if len(input_spec) > 0 and input_spec[-1].isMulti():
+            rep_type = input_spec[-1].fltype
+            for arg in input_spec[spec_len - 1:]: 
                 check_logicaltype(rep_type, arg, input_spec[-1].name)
-#        print "Processed args:", repr(args)
-        return args
-    else:
-        if arg_len > spec_len:
+                call_args.append(arg)
+        else:
             raise FlTypeError("Too many positional arguments %d for input specification %d" % (arg_len, spec_len))
-
-        # Array to build list of args
-        # Process positional args first
-        # Assume all is ok, check_type will throw an exception
-        # if there is an issue
-        call_args = [check_logicaltype(spec.fltype, match)
-            for spec, match in zip(input_spec, args)]
-
+    elif arg_len < spec_len:
         # Try to match the rest by name
         for spec in input_spec[arg_len:]:
             # try to find in kwargs
             match = kwargs.pop(spec.name, None)
             if not match:
-                raise FlTypeError("Could not find arg %s" % spec.name)
-            check_logicaltype(spec, match) 
+                if spec.default_val is NoDefault:
+                    raise FlTypeError("Could not find arg %s" % spec.name)
+                else:
+                    match = spec.default_val
+            check_logicaltype(spec.fltype, match)                 
             call_args.append(match) # build up the args list
-
-        return call_args
+    if len(kwargs) > 0:
+        raise FlTypeError("%d extra keyword args supplied: %s" % (len(kwargs), repr(kwargs)))
+    return call_args
 
 def validate_swap(new_chans, old_chans):
     """
