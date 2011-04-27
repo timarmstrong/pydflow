@@ -122,7 +122,7 @@ class TaskDescriptor(object):
 
         if remainder_name is not None:
             self.input_spec.append(InputSpec(remainder_name,
-                    self.input_types[-1]))
+                    self.input_types[-1], NoDefault))
 
     def validate_inputs(self, args, kwargs):
         return validate_inputs(self.input_spec, args, kwargs)
@@ -224,9 +224,9 @@ def validate_inputs(input_spec, args, kwargs):
         for spec, match in zip(input_spec, args)]
     
     if arg_len > spec_len:
-        if len(input_spec) > 0 and input_spec[-1].isMulti():
+        if spec_len > 0 and input_spec[-1].isMulti():
             rep_type = input_spec[-1].fltype
-            for arg in input_spec[spec_len - 1:]: 
+            for arg in args[spec_len:]: 
                 check_logicaltype(rep_type, arg, input_spec[-1].name)
                 call_args.append(arg)
         else:
