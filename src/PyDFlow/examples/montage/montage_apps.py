@@ -13,8 +13,11 @@ app_paths.add_path('/var/tmp/code/SwiftApps/Montage/scripts')
 
 @app((MImage) ,(MTable, MosaicData, Multiple(MImage)))
 def mAdd(img_tbl, hdr, *imgs):
-    # returns mosaic from adding together images.
-    #note: assumes that images are only .fit file in their directory
+    """
+    returns mosaic from adding together images.
+    img_tbl specifies images to be added,
+    all images must be in same directory
+    """
     mos = outfiles[0]
     return App("mAdd", "-p", path.dirname(imgs[0]), "-n", img_tbl, hdr, mos)
 
@@ -46,6 +49,7 @@ def mDiff(proj_img_1, proj_img_2, hdr):
 
 @app((MTable), (Multiple(MImage)))
 def mImgtbl(*imgs):
+    """ Generate text table with image metadata """
     img_tbl = outfiles[0]
     return App("mImgtbl", path.dirname(imgs[0]), img_tbl)
 
@@ -68,7 +72,7 @@ def mJPEG(mos_img):
 @app((JPEG), (MImage, MImage, MImage))
 def mJPEGrgb(rimg, gimg, bimg):
     """
-    Convert fit to rgb
+    Create rgb jpeg image with three FITS images for R, G, B channels
     """
     return App("mJPEG", 
         "-red", rimg, "-1s", "99.999%", "gaussian-log",
@@ -88,6 +92,15 @@ def mProjectPP(raw_img, hdr):
 def mProject(raw_img, hdr):
     proj_img = outfiles[0]
     return App("mProject", "-X", raw_img, proj_img, hdr)
+
+
+
+@app((MosaicData), (str, None, None, str, None, None, None))
+def mHdr(obj_or_loc, width, height=None, coord_sys="eq", equinox=2000.0, pixsize=1, rotation=0):
+    if height is None: height = width
+    return App("mHdr", "-s", coord_sys,
+               "-e", equinox, "-h", height, "-p", pixsize, "-r", rotation,
+               obj_or_loc, width, outfiles[0])
 
 @app((RemoteMTable), (str, str, str, None, None ))
 def mArchiveList(survey, band, obj_or_loc, width, height):
@@ -122,9 +135,7 @@ def mArchiveExec(imgtbl):
 
 @app((MImage), (str))
 def mArchiveGet(url):
-    """
-    Get an image from repo
-    """
+    """ Download an image from the archive """
     return App("mArchiveGet", url, outfiles[0])
 
 

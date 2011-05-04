@@ -4,7 +4,7 @@
 import unittest
 from PyDFlow.PyFun import *
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
-from PyDFlow.types.check import FlTypeError
+from PyDFlow.types.check import FlTypeError, Multiple
 
 Int = future.subtype()
 
@@ -91,7 +91,17 @@ class TestArgHandling(PyDFlowTest):
     def testOptionalKeyword(self):
         # Test positional
         self.assertEqual(fn_opt(Int(2), z=2).get(), 10)
-        self.assertEqual(fn_opt(Int(2), y=Int(2)).get(), 18)    
+        self.assertEqual(fn_opt(Int(2), y=Int(2)).get(), 18)
+        
+    def testMulti(self):
+        @func((Int), (Multiple(Int)))
+        def prod(*ns):
+            start = 1
+            for n in ns:
+                start = start * n
+            return start
+        
+        self.assertEqual(prod(Int(2), Int(3), Int(4)).get(), 24)
     
     def testNoArg(self):
         @func((future), ())

@@ -8,6 +8,8 @@ from PyDFlow.PyFun import *
 import time
 import random
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
+import logging
+#logging.basicConfig(level=logging.DEBUG)
 
 @func((future), (None))
 def inc(x):
@@ -34,6 +36,7 @@ class TestIterators(PyDFlowTest):
         self.assertEqual(count, COUNT)
         
     def testResultList(self):
+
         COUNT = 10
         res1 = (future(i) for i in range(COUNT))
         res1b = (future(i) for i in range(COUNT))

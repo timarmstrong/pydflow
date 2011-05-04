@@ -209,6 +209,23 @@ class TestApp(PyDFlowTest):
             os.chdir(olddir)
             os.remove(".randomfilename")
             
+    def testMany(self):
+        import datetime
+        @app((localfile), ())
+        def noop():
+            return App("touch", outfiles[0])
+
+        res = [noop() for i in range(500)]
+        start_t = datetime.datetime.now()
+        for r in res:
+            r.force()
+        i = 0
+        for r in res:
+            print i, 
+            r.get()
+            i += 1
+        print ''
+            
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

@@ -6,6 +6,9 @@ import os
 import os.path as path
 from PyDFlow.base.patterns import resultset
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 srcdir = os.path.dirname(__file__)
 
 
@@ -19,10 +22,13 @@ def strip_ext(path, ext):
         else:
             return path
     
-header = MosaicData(path.join(srcdir, "pleiades.hdr"))
+
 
 # size of montage in degrees
-dims = (3,3)
+dims = (3, 3)
+montage_centre = "56.5 23.75"
+header = MosaicData(path.join(srcdir, "pleiades.hdr"))
+
 
 refetch = False
 
@@ -32,11 +38,11 @@ def archive_fetch(bands):
     the sky and these frequency bands
     """
     img_table = RemoteMTable(path.join(bands, 'raw', 'remote.tbl'))
-    img_table << mArchiveList("dss", bands,"56.5 23.75", dims[0], dims[1])
+    img_table << mArchiveList("dss", bands, montage_centre, dims[0], dims[1])
     return img_table
 
 
-def process_one_band(bands, tbl):
+def process_one_band(bands, tbl, header):
     """
     Take the band name and the table of images and
     generate one image file with all the images stitched
@@ -57,12 +63,14 @@ def process_one_band(bands, tbl):
                     # remove .gz suffix for new file
                     strip_ext(path.basename(r.path()), ".gz"))) 
                 for r in raw_images]
+
     # Now reproject the images 
     for proj, raw_img in zip(projected, raw_images):
         proj << mProjectPP(raw_img, header)
 
     # Generate a temporary table with info about images
-    proj_table = mImgtbl(*projected)
+    proj_table = MTable(path.join(bands, 'proj', 'pimages.tbl'))
+    proj_table << mImgtbl(*projected)
 
     # Now combine the projected images into a montage
     band_img = MImage(path.join(bands, bands+".fits"))
@@ -79,7 +87,7 @@ img_tables = [archive_fetch(bands)
 # Use of resultset forces all futures in img_tables
 # , and allows to process the results out of order as
 # soon as data is ready.
-band_imgs = [process_one_band(bands, tbl)
+band_imgs = [process_one_band(bands, tbl, header)
              for bands, tbl 
              in resultset(img_tables, allbands)]
     

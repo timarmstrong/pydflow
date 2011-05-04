@@ -8,7 +8,7 @@ JPEG = localfile.subtype() # Image in JPEG format
 
 class RemoteMTable(MTable):
     """
-    Text table describing set of images
+    Text table describing set of images that can be downloaded
     """
     def read_urls(self):
         """ Returns a list of (url, image name) pairs from table """

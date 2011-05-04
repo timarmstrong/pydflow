@@ -269,8 +269,14 @@ class LocalFileChannel(FileChannel):
         return path
 
     def _cleanup_tmp(self, path):
-        os.remove(path)
-        tmpfiles.remove(self._bound) # no longer track
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        try:
+            tmpfiles.remove(self._bound) # no longer track
+        except KeyError:
+            pass
     
     def _docopy(self, src, dest):
         # copy preserving metadata

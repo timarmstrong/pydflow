@@ -37,5 +37,5 @@ class LogLock(object):
         return False    # Do not swallow exceptions
 
 
-#graph_mutex = Lock()
-graph_mutex = LogLock()
+graph_mutex = Lock()
+#graph_mutex = LogLock()

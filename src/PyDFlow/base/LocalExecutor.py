@@ -93,6 +93,7 @@ def exec_async(channel):
     with idle_worker_cvar:
         in_queue.put(channel)
         idle_worker_cvar.notifyAll()
+    logging.debug("Exiting exec_async")
 
 def fail_task(task, continuation, exceptions):
     # assume holding lock
@@ -185,7 +186,7 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to resume" % self.getName())
             # Try to get a frame from the resume queue
-            frame = self.get_from_queue(self.resume_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random(), frame=True)
+            frame = self.get_from_queue(self.resume_queue, random.random() > 0.5, QUEUE_TIMEOUT * random.random())
             if frame is not None:
                 self.eval_frame(frame)
                 logging.debug("%s ran from resume" % self.getName())
@@ -193,13 +194,18 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            frame = self.get_from_queue(self.in_queue, random.random() > 0.5, 
-                                        QUEUE_TIMEOUT * random.random(),frame=False)
-            if frame is not None:
-                logging.debug("%s running from new work queue" % self.getName())
-                self.eval_frame(frame)
-                logging.debug("%s ran from new work queue" % self.getName())
-                continue
+            chan = self.get_from_queue(self.in_queue, random.random() > 0.5, 
+                                        QUEUE_TIMEOUT * random.random())
+            
+                
+            if chan is not None:
+                with graph_mutex:
+                    frame = makeframe(chan, [])
+                if frame is not None:
+                    logging.debug("%s running from new work queue" % self.getName())
+                    self.eval_frame(frame)
+                    logging.debug("%s ran from new work queue" % self.getName())
+                    continue
             else:
                 logging.debug("frame was none")
             
@@ -274,22 +280,15 @@ class WorkerThread(threading.Thread):
             return False
         
     
-    def get_from_queue(self, queue, block, timeout, frame):
+    def get_from_queue(self, queue, block, timeout):
         """
         Trys to get some new work from the queue provided
         Returns True if found, false otherwise
         """
         try:
-            item = queue.get(block, timeout)
+            frame = queue.get(block, timeout)
             
             queue.task_done()
-            if frame:
-                frame = item
-            else:
-                with graph_mutex:
-                    # Build the taskframe: the task and all of its unresolved
-                    # dependencies
-                    frame = makeframe(item, [])
             
             logging.debug("%s got %s from queue" % (threading.currentThread().getName(),
                                                     repr(frame)))
@@ -308,7 +307,8 @@ class WorkerThread(threading.Thread):
         that there is no work.
         """
         global idle_worker_count, idle_worker_cvar
-        frame = None
+        res = None
+        logging.debug("Thread %s try_idle" % (self.getName()))
         with idle_worker_cvar:
             if not self.idle:
                 self.idle = True
@@ -319,16 +319,19 @@ class WorkerThread(threading.Thread):
                 # queue, if there is genuinely nothing there, block on
                 # condition
                 
-                frame = self.get_from_queue(self.resume_queue, False, None, frame=True)
-                if frame is not None:
+                res = self.get_from_queue(self.resume_queue, False, None)
+                if res is not None:
                     # got a task: wake up all
+                    must_frame=False
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
                     break
                 
-                frame = self.get_from_queue(self.in_queue, False, None, frame=False)
-                if frame is not None:
+                res = self.get_from_queue(self.in_queue, False, None)
+                
+                if res is not None:
+                    must_frame=True
                     self.idle = False
                     idle_worker_count = 0
                     idle_worker_cvar.notifyAll()
@@ -336,8 +339,15 @@ class WorkerThread(threading.Thread):
                 
                 idle_worker_cvar.wait()
         self.idle = False
-        if frame is not None:
-            self.eval_frame(frame)
+        
+            
+        if res is not None:
+            if must_frame:
+                with graph_mutex:
+                    frame = makeframe(res, [])
+            else:
+                frame = res
+            return frame
     
     def steal_work(self):
         """
@@ -550,7 +560,9 @@ class WorkerThread(threading.Thread):
                         continuation = []
                     # build the frame for the next iteration 
                     taskframe = makeframe(next_ch, continuation)
-                    
+                    if taskframe is None:
+                        # error found 
+                        return None
                     # as part of making frame, task state can change
                     if next_ch._state == T_DATA_READY:
                         found_runnable = True
