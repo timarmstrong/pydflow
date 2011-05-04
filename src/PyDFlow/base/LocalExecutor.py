@@ -51,7 +51,7 @@ resume_queue = None
 PYFUN_THREAD_NAME = "pyfun_thread"
 
 #NUM_THREADS = 8
-NUM_THREADS = 4
+NUM_THREADS = 1
 
 workers = []
 
@@ -90,8 +90,8 @@ def exec_async(channel):
     logging.debug("Entered exec_async")
     initFuture.get()
     logging.debug("Added channel to work queue")
-    in_queue.put(channel)
     with idle_worker_cvar:
+        in_queue.put(channel)
         idle_worker_cvar.notifyAll()
 
 def fail_task(task, continuation, exceptions):
@@ -519,6 +519,8 @@ class WorkerThread(threading.Thread):
                 else:
                     raise Exception("Invalid task state for %s" %
                                     (repr(taskframe)))
+                if next_ch and dep_count > 1:
+                    break
             
             logging.debug("Depends on %d more channels, next channel is %s" % (dep_count, next_ch))
             if dep_count == 0:
