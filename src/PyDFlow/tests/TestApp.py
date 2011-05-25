@@ -218,7 +218,7 @@ class TestApp(PyDFlowTest):
         res = [noop() for i in range(500)]
         start_t = datetime.datetime.now()
         for r in res:
-            r.force()
+            r.spark()
         i = 0
         for r in res:
             print i, 

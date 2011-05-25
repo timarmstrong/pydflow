@@ -216,9 +216,9 @@ class AtomicChannel(Channel):
             if  not self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
                 # This thread goes off and runs stuff recursively
                 # before blocking
-                LocalExecutor.force_recursive(self)    
+                LocalExecutor.spark_recursive(self)    
         else:
-            self._force()
+            self._spark()
         graph_mutex.release()
         try:
             res = self._future.get()
@@ -261,12 +261,12 @@ class AtomicChannel(Channel):
                     
 
 
-    def _force(self, done_callback=None):
+    def _spark(self, done_callback=None):
         """
         Should be called with lock held
         Ensure that at some point in the future this channel will be filled
         """
-        logging.debug("Atomic Channel forced")
+        logging.debug("Atomic Channel sparked")
         if done_callback is not None:
             self._done_callbacks.append(done_callback)
 
@@ -290,7 +290,7 @@ class AtomicChannel(Channel):
                 #TODO: exception type
                 raise Exception("forcing channel which has no input tasks or bound data")
         elif self._state in (CH_CLOSED_WAITING, CH_OPEN_W):
-            # Already forced, just wait
+            # Already sparked, just wait
             pass
         elif self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
             # Filled: notify all, including provided callback

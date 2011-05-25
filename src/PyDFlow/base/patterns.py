@@ -76,8 +76,8 @@ def resultset(channels, channel_ids=None, max_ready=None):
         # track the id (assume channels are uniquely hashable)
         #   which is true if hash not overloaded
         
-        # force and register callback first to avoid race condition
-        chan.force(done_callback=callback)
+        # spark and register callback first to avoid race condition
+        chan.spark(done_callback=callback)
         outstanding[chan] = id
         noutstanding += 1
         # Yield all of the finished items before launching more
@@ -137,7 +137,7 @@ def dynreduce(reducefun, args):
     nleft = 0
     # Start everything running
     for arg in args:
-        arg.force(done_callback=callback)
+        arg.spark(done_callback=callback)
         nleft += 1
 
     # first argument to a reduce call: None if one not present yet
@@ -148,7 +148,7 @@ def dynreduce(reducefun, args):
             first = curr
         else:
             reduced = reducefun(first, curr)
-            reduced.force(done_callback=callback)
+            reduced.spark(done_callback=callback)
             # one less item to reduce 
             nleft -= 1
             first = None
@@ -174,8 +174,8 @@ def waitall(*args):
         # Avoid repeatedly acquiring mutex
         with graph_mutex:
             for i in xrange(next_to_run, len(items)):
-                items[i]._force()
-        # keep track of which we have forced
+                items[i]._spark()
+        # keep track of which we have sparked
         next_to_run = len(items)
             
     # Wait for all to finish

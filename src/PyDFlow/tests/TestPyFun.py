@@ -161,13 +161,13 @@ class TestPyFun(PyDFlowTest):
     def testInvalidReplace2(self):
         f = Int()
         x = one()
-        x.force() # should raise error even if f not filled
+        x.spark() # should raise error even if f not filled
         self.assertRaises(InvalidReplaceException, lambda : f << x)
     
     def testInvalidReplace3(self):
         f = Int()
         x = one()
-        x.force() # should raise error even if f not filled
+        x.spark() # should raise error even if f not filled
         time.sleep(0.1) # make sure task finishes first
         self.assertRaises(InvalidReplaceException, lambda : f << x)
         self.assertEquals(x.get(), 1)    
@@ -176,7 +176,7 @@ class TestPyFun(PyDFlowTest):
         f = Int()
         # make sure this thread runs first
         x = just_sleep(0.1)
-        x.force() # should raise error even if f not filled
+        x.spark() # should raise error even if f not filled
         self.assertRaises(InvalidReplaceException, lambda : f << x)
         self.assertEquals(x.get(), 0)    
         
@@ -270,7 +270,7 @@ class TestPyFun(PyDFlowTest):
             return x
         # Sleep to ensure that x won't be finished ebfore fn launches
         x = sleep(silly_add(Int(30), Int(20)), 2)
-        x.force()
+        x.spark()
         
         @func((Int), ())
         def fn():

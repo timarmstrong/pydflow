@@ -81,7 +81,7 @@ class ChannelPlaceholder(Placeholder, Channel):
     def get(self):
         #TODO: check?
         with graph_mutex:
-            self._force()
+            self._spark()
             self._check_real_channel()
             next = self._proxy_for.get()
         #TODO: this is a bit hacky...
@@ -120,14 +120,14 @@ class ChannelPlaceholder(Placeholder, Channel):
             logging.debug("Proxy for %s" % repr(self._proxy_for))
         return self._proxy_for.get()
 
-    def _force(self, done_callback=None):
+    def _spark(self, done_callback=None):
         # input task should be a compound task.
         #  make sure the compound task is expanded
         # TODO: less dreadful implementation
         self._expand()
         
         next_chan = self._proxy_for.get()
-        next_chan._force(done_callback)
+        next_chan._spark(done_callback)
         
         
     

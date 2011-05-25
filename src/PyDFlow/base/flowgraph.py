@@ -349,22 +349,22 @@ class Channel(flvar):
         """
         raise UnimplementedException("get not implemented on base Channel class")
 
-    def _force(self, done_callback=None):
+    def _spark(self, done_callback=None):
         """
         TODO: document
         Should be overridden.  The overriding method definition should:
         check states of inputs, update own state, start any inputs running
         """
-        raise UnimplementedException("force not implemented on base Channel class")
+        raise UnimplementedException("spark not implemented on base Channel class")
     
-    def force(self, done_callback=None):
+    def spark(self, done_callback=None):
         """
         Ensure that at some point in the future this channel will be filled.
         I.e. if it is runnable, start it running, otherwise make sure that
         the task's inputs will be filled.
         """
         with graph_mutex: 
-            self._force(done_callback)
+            self._spark(done_callback)
     
     def _notify_done(self): 
         for cb in self._done_callbacks:

@@ -7,6 +7,7 @@ from itertools import chain
 import glob
 import re
 import os.path
+from PyDFlow.base.structures import IStruct
 
 class SimpleMapper(object):
     def __init__(self, type, prefix, suffix):
@@ -57,27 +58,11 @@ class SimpleMapper(object):
         return chain(self._indexed_items.itervalues(), self._named_items.itervalues())
     
     
-class ReadOnlyArray(object):
-    def __init__(self, list):
-        super(ReadOnlyArray, self).__setattr__("_list", list)
-        
-    def __getitem__(self, key):
-        if not isinstance(key, ( int, long, slice ) ):
-            raise TypeError("Key should be integral or slice")
-        return self._list[key]
-    
-    def __setitem__(self, key, value):
-        raise TypeError("Setting item in ReadOnlyArray is not supported")
-    
-    def __len__(self):
-        return len(self._list)
-    
-    def __iter__(self):
-        return iter(self._list)
+
         
 def GlobMapper(type, pattern):
     files = glob.glob(pattern)
-    return ReadOnlyArray([type(f) for f in files])
+    return IStruct([type(f) for f in files])
 
 def SubMapper(type, source, match, transform, directory=None):
     compiled = re.compile(match)
@@ -86,4 +71,4 @@ def SubMapper(type, source, match, transform, directory=None):
         # Change directory
         names = (os.path.join(directory, os.path.basename(name)) 
                  for name in names)
-    return ReadOnlyArray([type(n) for n in names])
+    return IStruct([type(n) for n in names])

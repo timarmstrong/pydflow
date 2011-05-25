@@ -600,7 +600,7 @@ class WorkerThread(threading.Thread):
                             #TODO: assuming atomic?
                             # All channels are already being evaluated by other threads:
                             #     just register for notifications
-                            channel._force(done_callback=task_resumer)
+                            channel._spark(done_callback=task_resumer)
                     # exit
                     return None
                     
@@ -617,14 +617,14 @@ def isWorkerThread(thread=None):
     name = thread.getName()
     return name[:len(PYFUN_THREAD_NAME)] == PYFUN_THREAD_NAME
 
-def force_recursive(channel):
+def spark_recursive(channel):
     """
     Assume we are holding the global mutex when this is called
     """
     thread = threading.currentThread()
-    logging.debug("force_recursive %s" % thread.getName())
+    logging.debug("spark_recursive %s" % thread.getName())
     if not isWorkerThread(threading.currentThread()):
-        raise Exception("Non-worker thread running force_recursive")
+        raise Exception("Non-worker thread running spark_recursive")
      
     
     #assert(len(channel._in_tasks) == 1)

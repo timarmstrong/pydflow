@@ -80,7 +80,7 @@ def main():
 
     print "%d apps built into graph in %s" % (app_count, graph_built_t - start_t)
     
-    output.force()
+    output.spark()
     fill_started_t = datetime.datetime.now()
     print "Sorted file is being written to at %s" % output.get()
     output.get()

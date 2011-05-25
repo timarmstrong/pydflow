@@ -1,10 +1,12 @@
-Optionally remove type checking:
-* Dynamically determine whether an arg is a channel or not
-
-
 Control flow structures:
 * If-then-else (need to allow mix of lazy and strict args)
 * Custom control flow procedures implemented in Python
+* compound
+   * replaces a channel.
+   * when evaluated , replaces channel in output tasks
+   * CBV or CBN
+   * Needs to emulate a channel: if user calls get it will have
+        to unfurl
 
 App procedures:
 ------------------

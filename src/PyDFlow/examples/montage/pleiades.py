@@ -84,7 +84,7 @@ img_tables = [archive_fetch(bands)
     
 # For each of the three bands, stitch together the different
 # images into a grayscale image.
-# Use of resultset forces all futures in img_tables
+# Use of resultset sparks all futures in img_tables
 # , and allows to process the results out of order as
 # soon as data is ready.
 band_imgs = [process_one_band(bands, tbl, header)
