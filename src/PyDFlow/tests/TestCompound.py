@@ -63,7 +63,7 @@ class TestCompound(PyDFlowTest):
 
 
     def setUp(self):
-        from stacktrace import trace_start
+        #from stacktrace import trace_start
         import os
         #try:
         #    os.remove("trace.html")
@@ -72,7 +72,7 @@ class TestCompound(PyDFlowTest):
         #trace_start("trace.html")
 
     def tearDown(self):
-        from stacktrace import trace_stop
+        #from stacktrace import trace_stop
         #trace_stop()
     
     def test1(self):

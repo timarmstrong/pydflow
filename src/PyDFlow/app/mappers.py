@@ -62,7 +62,7 @@ class SimpleMapper(object):
         
 def GlobMapper(type, pattern):
     files = glob.glob(pattern)
-    return IStruct([type(f) for f in files])
+    return IStruct(type, files)
 
 def SubMapper(type, source, match, transform, directory=None):
     compiled = re.compile(match)
@@ -71,4 +71,4 @@ def SubMapper(type, source, match, transform, directory=None):
         # Change directory
         names = (os.path.join(directory, os.path.basename(name)) 
                  for name in names)
-    return IStruct([type(n) for n in names])
+    return IStruct(type, n)
