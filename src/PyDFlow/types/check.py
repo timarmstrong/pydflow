@@ -136,10 +136,10 @@ class TaskDescriptor(object):
             outputs = (outputs,)
         if len(outputs) != len(self.output_types):
             raise FlTypeError("_outputs must match length of output_types")
-        err = [(chan, t) for chan, t in zip(outputs, self.output_types)
-                if not issubclass(t, chan.__class__)]
+        err = [(ivar, t) for ivar, t in zip(outputs, self.output_types)
+                if not issubclass(t, ivar.__class__)]
         if err:
-            raise FlTypeError("Output channel(s) of wrong type provided: %s"
+            raise FlTypeError("Output I-var(s) of wrong type provided: %s"
                 % (repr(err)))
 
     def set_output_wrapper(self, wrapper):
@@ -147,12 +147,12 @@ class TaskDescriptor(object):
 
     def make_outputs(self):
         """
-        Initialize a set of output channels with correct type.
+        Initialize a set of output I-vars with correct type.
         """
         if self._output_wrapper is not None:
-            return [self._output_wrapper(channel_cls)() for channel_cls in self.output_types]
+            return [self._output_wrapper(var_cls)() for var_cls in self.output_types]
         else:
-            return [channel_cls() for channel_cls in self.output_types]
+            return [var_cls() for var_cls in self.output_types]
     
     def input_count(self):
         return len(self.input_spec)
@@ -247,18 +247,18 @@ def validate_inputs(input_spec, args, kwargs):
         raise FlTypeError("%d extra keyword args supplied: %s" % (len(kwargs), repr(kwargs)))
     return call_args
 
-def validate_swap(new_chans, old_chans):
+def validate_swap(new_ivars, old_ivars):
     """
-    Validate that a list of old_chans can be replaced with new_chans without breaking types.
+    Validate that a list of old_ivars can be replaced with new_ivars without breaking types.
     """
-    if len(new_chans) != len(old_chans):
-        raise FlTypeError("new channels has different length %d from old channels %d" %
-                          (len(new_chans), len(old_chans)))
+    if len(new_ivars) != len(old_ivars):
+        raise FlTypeError("new ivars list has different length %d from old ivars %d" %
+                          (len(new_ivars), len(old_ivars)))
         
-    for new, old in zip(new_chans, old_chans):
+    for new, old in zip(new_ivars, old_ivars):
         if not isinstance(new, old.__class__):
-            raise FlTypeError(("new channel %s is not a subclass of the class of" +  
-                " old channel %s, cannot replace") % (repr(new), repr(old)))
+            raise FlTypeError(("new I-var %s is not a subclass of the class of" +  
+                " old I-var %s, cannot replace") % (repr(new), repr(old)))
 
 
 def spec_zip(input_spec, other):

@@ -11,7 +11,7 @@ from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 import logging
 #logging.basicConfig(level=logging.DEBUG)
 
-@func((future), (None))
+@func((py_ivar), (None))
 def inc(x):
     time.sleep(random.random() * 0.1)
     return x + 1
@@ -38,8 +38,8 @@ class TestIterators(PyDFlowTest):
     def testResultList(self):
 
         COUNT = 10
-        res1 = (future(i) for i in range(COUNT))
-        res1b = (future(i) for i in range(COUNT))
+        res1 = (py_ivar(i) for i in range(COUNT))
+        res1b = (py_ivar(i) for i in range(COUNT))
         
         res2 = (inc(i - 1) for i in range(COUNT))
         res2b = (inc(i - 1) for i in range(COUNT))
@@ -54,7 +54,7 @@ class TestIterators(PyDFlowTest):
         
     def testResultBag(self):
         COUNT = 10
-        res1 = (future(i) for i in range(COUNT))
+        res1 = (py_ivar(i) for i in range(COUNT))
         res2 = (inc(i - 1) for i in range(COUNT))
         res2b = (inc(i - 1) for i in range(COUNT))
 

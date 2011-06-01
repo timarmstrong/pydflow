@@ -10,7 +10,7 @@ import logging
 #logging.basicConfig(level=logging.DEBUG)
 
 
-Int = future.subtype()
+Int = py_ivar.subtype()
 
 
 @func((Int), (Int, Int))

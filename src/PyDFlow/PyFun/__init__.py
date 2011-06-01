@@ -6,5 +6,5 @@ import flowgraph
 from PyDFlow.compound import compound
 
 
-future = flowgraph.FutureChannel
+py_ivar = flowgraph.PyIvar
 

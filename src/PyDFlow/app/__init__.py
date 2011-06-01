@@ -9,5 +9,5 @@ from paths import add_path, set_paths
 from PyDFlow.app.mappers import SimpleMapper, GlobMapper, SubMapper
 
 
-flfile = flowgraph.FileChannel
-localfile = flowgraph.LocalFileChannel
+flfile = flowgraph.FileIvar
+localfile = flowgraph.LocalFileIvar

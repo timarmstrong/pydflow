@@ -1,5 +1,5 @@
 """
-Implements the logical types of channels (ie the type of the data
+Implements the logical types of I-vars (ie the type of the data
 being passed through them)
 @author: Tim Armstrong
 """

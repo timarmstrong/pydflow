@@ -1,6 +1,6 @@
 from __future__ import with_statement
 '''
-Implements a basic future.
+Implements a basic write once variable.
 Provided that it is accessed by the set and get methods,
 this enforces write-once semantics.
 
@@ -9,13 +9,13 @@ TODO: implement a faster C version
 '''
 import threading
 
-class FutureSetTwiceException(Exception):
+class VarSetTwiceException(Exception):
     def __init__(self, value):
         self.parameter = value
     def __str__(self):
         return repr(self.parameter)
 
-class Future:
+class WriteOnceVar:
     def __init__(self, function=None):
         """
         Function is a 0-arg function that will be executed
@@ -30,14 +30,14 @@ class Future:
     def __repr__(self):
         with self.__cond:
             if self.__isset:
-                return "<future: %s>" % repr(self.__data)
+                return "<WriteOnceVar: %s>" % repr(self.__data)
             else:
-                return "<future: unset, fn %s>" % repr(self.__function)    
+                return "<WriteOnceVar: unset, fn %s>" % repr(self.__function)    
             self.__cond.release()
         
     def get(self):
         """
-        Get the value of a future.  If it is
+        Get the value of a var.  If it is
         not available, block until it is
         """
         with self.__cond:
@@ -64,14 +64,14 @@ class Future:
     
     def set(self,data):
         """
-        Sets the value of a future.  This is only allowed
+        Sets the value of this var.  This is only allowed
         to be done once
         """
 
         with self.__cond:
             if self.__isset:
-                raise FutureSetTwiceException("A thread attempted to set a filled"
-                                + "future a second time")
+                raise VarSetTwiceException("A thread attempted to set a filled"
+                                + "write once variable a second time")
             self.__isset = True
             self.__data = data
             for f in self.__merged:
@@ -79,9 +79,9 @@ class Future:
             self.__cond.notifyAll()
             
             
-    def merge_future(self, other):
+    def merge_other(self, other):
         """
-        Make the value of this future automatically propagate to another future.
+        Make the value of this var automatically propagate to another var.
         """
         assert(not other.isSet())
         with self.__cond:

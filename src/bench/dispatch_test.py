@@ -30,10 +30,10 @@ print ''
 end_t = datetime.datetime.now()
 
 print "%d app tasks  took %s" % (n, end_t - start_t)
-@func((future), ())
+@func((py_ivar), ())
 def noopf():
     return 1
-@func((future), (Multiple(future)))
+@func((py_ivar), (Multiple(py_ivar)))
 def mergef(*x):
     return x[0]
 

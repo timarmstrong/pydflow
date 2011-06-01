@@ -2,7 +2,7 @@
 @author: Tim Armstrong
 '''
 from PyDFlow.base.decorators import task_decorator, TaskWrapper
-from PyDFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.atomic import AtomicIvar, AtomicTask
 
 import pycuda.autoinit
 import pycuda.driver as drv
@@ -29,10 +29,10 @@ class cuda_kernel(task_decorator):
 class CUDATask(AtomicTask):
     """
     TODO: Intelligence to work out what stream this belongs to
-        Channels view: if all input channels belong to same stream,
-            then this channel has a stream.  The first output channel
-            can then be assigned to this stream too.  Other output channels
-            will have to wait until the async channel has actually finished.
+        Ivars view: if all input Ivars belong to same stream,
+            then this Ivar has a stream.  The first output Ivar
+            can then be assigned to this stream too.  Other output Ivars
+            will have to wait until the async Ivar has actually finished.
 
     """
     def __init__(self, block, grid, *args,  **kwargs):
@@ -45,7 +45,7 @@ class CUDATask(AtomicTask):
 
     def _exec(self, continuation, failure_continuation, contstack=None):
         # TODO: update state
-        # TODO: prep channels.  If GPU channels are already on device, we're good.  Otherwise
+        # TODO: prep Ivars.  If GPU Ivars are already on device, we're good.  Otherwise
         #    we will need to worry about starting asynchronously a data transfer
         
         # TODO: set input arguments
@@ -84,7 +84,7 @@ class _CUDAKernel(TaskWrapper):
         #Delegate to parent class
         super(_CUDAKernel, self).__call__(self, *args, **kwargs)
 
-class CUDAChannel(AtomicChannel):
+class CUDAIvar(AtomicIvar):
     """
     This class represents a numpy array that can be moved between CPU and
     GPU, and passed between GPU kernels.
@@ -93,8 +93,8 @@ class CUDAChannel(AtomicChannel):
 
     filled -> this class has a reference to the data
     filling synchronously -> predecessor tasks have been set to run.  When the input tasks complete, then
-        this runtime will ensure that this channel is filled
-    filling asynchronously -> all the predecessor tasks/channels are being executed/filled asynchronously by
+        this runtime will ensure that this Ivar is filled
+    filling asynchronously -> all the predecessor tasks/Ivars are being executed/filled asynchronously by
         the CUDA runtime.  TODO: mechanism to update states as required.
     not started -> ... self explanatory
 
@@ -110,7 +110,7 @@ class CUDAChannel(AtomicChannel):
     pass
 
 
-cudavar = CUDAChannel
+cudavar = CUDAIvar
 
 class CUDAKernel(_CUDAKernel):
     """

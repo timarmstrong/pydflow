@@ -9,8 +9,8 @@ from PyDFlow.base.patterns import dynreduce, treereduce, foldl, scanl
 from itertools import imap
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
-Int = future.subtype()
-String = future.subtype()
+Int = py_ivar.subtype()
+String = py_ivar.subtype()
 class TestReduce(PyDFlowTest):
 
 

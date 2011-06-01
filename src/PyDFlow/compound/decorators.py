@@ -2,7 +2,7 @@
 @author: Tim Armstrong
 '''
 
-from compound import CompoundTask, ChannelPlaceholder
+from compound import CompoundTask, IvarPlaceholder
 from PyDFlow.base.decorators import task_decorator, TaskWrapper
 import logging
 
@@ -14,10 +14,10 @@ class compound(task_decorator):
         self.wrapper_class = CompoundWrapper
         
 
-def sub_placeholder(channel_class):
+def sub_placeholder(ivar_class):
     def place_wrap():
         logging.debug("place_wrap invoked")
-        return ChannelPlaceholder(channel_class)
+        return IvarPlaceholder(ivar_class)
     return place_wrap
  
         

@@ -9,7 +9,7 @@ from PyDFlow import *
 from PyDFlow.PyFun import *
 #logging.basicConfig(level=logging.DEBUG)
 
-Int = future.subtype()
+Int = py_ivar.subtype()
 
 
 @func((Int), (Int))
@@ -36,9 +36,9 @@ def use_rbag(bag):
 
     print len(res), "results"
 
-print "Testing result collection with fresh channels"
+print "Testing result collection with fresh ivars"
 use_rbag(b)
-print "Testing result collection with ready channels"
+print "Testing result collection with ready ivars"
 use_rbag(b) # check that it works ok with already finished tasks
 
 inp2 = [Int(i) for i in range(20)]
@@ -46,5 +46,5 @@ inp2 = [Int(i) for i in range(20)]
 out2 = map(rand_dur, inp)
 
 b = resultset(out2 + out )
-print "Testing result collection with mix of channels"
+print "Testing result collection with mix of ivars"
 use_rbag(b) # check that it works ok with already finished tasks

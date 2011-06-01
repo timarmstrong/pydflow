@@ -10,7 +10,7 @@ import random
 
 #logging.basicConfig(level=logging.DEBUG)
 
-Int = future.subtype()
+Int = py_ivar.subtype()
 
 @func((Int), ())
 def zero():
@@ -49,7 +49,7 @@ def fib(n):
         f2 = f3
     return f2
 
-sorted_array = future.subtype()
+sorted_array = py_ivar.subtype()
 
 @func((sorted_array), (sorted_array, sorted_array))
 def merge(l1, l2):

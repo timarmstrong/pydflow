@@ -8,9 +8,9 @@ import logging
 import heapq
 from PyDFlow.base.mutex import graph_mutex
 
-def resultlist(channels, max_ready=None):
+def resultlist(ivars, max_ready=None):
     """
-    Take a bunch of channels, start them running and return results in 
+    Take a bunch of ivars, start them running and return results in 
     in the order provided
     """
     # Use the resultset as the execution mechanism and reassemble into
@@ -28,7 +28,7 @@ def resultlist(channels, max_ready=None):
         def __cmp__(self, oth):
             return cmp(self.ix, oth.ix)
     
-    for i, res in resultset(channels, max_ready=max_ready):
+    for i, res in resultset(ivars, max_ready=max_ready):
         if i == next_id:
             yield res
             next_id += 1
@@ -41,31 +41,31 @@ def resultlist(channels, max_ready=None):
     while len(done) > 0:
         yield heapq.heappop(done).item
         
-def resultset(channels, channel_ids=None, max_ready=None):
+def resultset(ivars, ivar_ids=None, max_ready=None):
     """
-    Take a bunch of channels, start them running and iterate over
+    Take a bunch of ivars, start them running and iterate over
     the results in the order they finish.
 
     max_ready limits the number of tasks that will be launched at
     one time
     """
     finishedq = Queue.Queue()
-    def callback(chan):
-        finishedq.put(chan)
+    def callback(ivar):
+        finishedq.put(ivar)
 
     """
-    Start the channels running and iterate over the results 
-    of the channel in the order in which they finish.
+    Start the ivars running and iterate over the results 
+    of the ivar in the order in which they finish.
     """
-    if channel_ids is None:
-        iter = enumerate(channels)
+    if ivar_ids is None:
+        iter = enumerate(ivars)
     else:
-        iter = izip(channel_ids, channels)
+        iter = izip(ivar_ids, ivars)
     
     outstanding = {} 
     noutstanding = 0
 
-    for id, chan in iter:
+    for id, ivar in iter:
         # Bound the number of outstanding requests
         while max_ready and noutstanding >= max_ready:
             # wait for something to finish before running
@@ -73,12 +73,12 @@ def resultset(channels, channel_ids=None, max_ready=None):
             fin_id = outstanding.pop(finished)
             noutstanding -= 1
             yield fin_id, finished
-        # track the id (assume channels are uniquely hashable)
+        # track the id (assume ivars are uniquely hashable)
         #   which is true if hash not overloaded
         
         # spark and register callback first to avoid race condition
-        chan.spark(done_callback=callback)
-        outstanding[chan] = id
+        ivar.spark(done_callback=callback)
+        outstanding[ivar] = id
         noutstanding += 1
         # Yield all of the finished items before launching more
         while (not finishedq.empty()):
@@ -127,12 +127,12 @@ def dynreduce(reducefun, args):
     """
     reducefun should be a reduce function that takes two arguments.
     It should be commutative and associative.
-    args should be an iterable of channels
+    args should be an iterable of ivars
     This reducer performs reductions as data becomes available.
     """
     finishedq = Queue.Queue()
-    def callback(chan):
-        finishedq.put(chan)
+    def callback(ivar):
+        finishedq.put(ivar)
 
     nleft = 0
     # Start everything running
@@ -159,7 +159,7 @@ def dynreduce(reducefun, args):
 
 def waitall(*args):
     """
-    args can be channels or iterable containers of channels
+    args can be ivars or iterable containers of ivars
     """
     items = []
     next_to_run = 0

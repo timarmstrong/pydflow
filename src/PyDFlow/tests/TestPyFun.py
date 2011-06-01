@@ -5,7 +5,7 @@ import unittest
 import time
 import logging
 
-from PyDFlow.PyFun import future, func
+from PyDFlow.PyFun import py_ivar, func
 from PyDFlow.base.states import *
 import threading as th
 
@@ -18,8 +18,8 @@ from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 from PyDFlow.base.exceptions import InvalidReplaceException
 import sys
 
-Int = future.subtype()
-String = future.subtype()
+Int = py_ivar.subtype()
+String = py_ivar.subtype()
 #logging.basicConfig(level=logging.DEBUG)
 
 
@@ -101,10 +101,10 @@ class TestPyFun(PyDFlowTest):
         x = Int()
 
         x <<= one()
-        self.assertEquals(x.state(), CH_CLOSED)
+        self.assertEquals(x.state(), IVAR_CLOSED)
         self.assertEquals(x.readable(), False)
         self.assertEquals(x.get(), 1)
-        self.assertEquals(x.state(), CH_DONE_FILLED)
+        self.assertEquals(x.state(), IVAR_DONE_FILLED)
         self.assertEquals(x.readable(), True)
         
         y = Int() << one()
@@ -137,7 +137,7 @@ class TestPyFun(PyDFlowTest):
         
     def testOutputTypes(self):
         # Should be ok to assign to superclass
-        f = future()
+        f = py_ivar()
         f <<= one()
         self.assertEquals(f.get(), 1)
         
@@ -191,7 +191,7 @@ class TestPyFun(PyDFlowTest):
         
     def testType(self):
         MagicInt = Int.subtype()
-        self.assertTrue(future.isinstance(MagicInt("hello")))
+        self.assertTrue(py_ivar.isinstance(MagicInt("hello")))
 
     def testFib(self):
         
@@ -228,7 +228,7 @@ class TestPyFun(PyDFlowTest):
     def testWorkerThread(self):
         from PyDFlow.base.LocalExecutor import isWorkerThread
         self.assertFalse(isWorkerThread())
-        @func((future), ())
+        @func((py_ivar), ())
         def isWorker():
             return isWorkerThread()
         self.assertTrue(isWorker().get())
@@ -310,8 +310,8 @@ class TestPyFun(PyDFlowTest):
         Have this as last test as it ties up lots of threads
         """
         res = rec_fib(15)
-        from PyDFlow.futures import Future
-        resslot = Future()
+        from PyDFlow.writeonce import WriteOnceVar
+        resslot = WriteOnceVar()
         def waiter(resslot):
             print "waiter running"
             f = res.get()
@@ -352,7 +352,7 @@ class TestPyFun(PyDFlowTest):
         self.assertExecutionException(MyException, fut.get)
     
     def testSimpleException5(self):
-        # Check that exception is propagated ok if we reuse a bad channel
+        # Check that exception is propagated ok if we reuse a bad ivar
         fut = cause_exception()
         self.assertExecutionException(MyException, fut.get)
         self.assertExecutionException(MyException, fut.get)

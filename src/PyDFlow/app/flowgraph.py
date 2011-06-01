@@ -3,7 +3,7 @@
 '''
 from __future__ import with_statement
 
-from PyDFlow.base.atomic import AtomicChannel, AtomicTask, Unbound
+from PyDFlow.base.atomic import AtomicIvar, AtomicTask, Unbound
 from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.states import *
@@ -112,16 +112,16 @@ outfiles = OutputGen()
 
 
 
-class FileChannel(AtomicChannel):
+class FileIvar(AtomicIvar):
     """
-    A generic channel to handle all sorts of file data.
+    A generic ivar to handle all sorts of file data.
 
-    File channels can be bound to a location in the file system,
+    File ivars can be bound to a location in the file system,
     typically specified by a path string (although the exact
     details depend on the subclass).
     """
     def __init__(self, *args, **kwargs):
-        super(FileChannel, self).__init__(*args, **kwargs)
+        super(FileIvar, self).__init__(*args, **kwargs)
         self._temp_created=False
 
     def open(self):
@@ -130,7 +130,7 @@ class FileChannel(AtomicChannel):
         This will block if the file's data is not yet available.
         """
         raise UnimplementedException("open() not implemented for \
-                                        generic file channels")
+                                        generic file ivars")
         
     def _open_write(self):
         """
@@ -152,11 +152,11 @@ class FileChannel(AtomicChannel):
 
     def _touch_file(self):
         """
-        Only works if channel bound.
+        Only works if ivar bound.
         Will ensure that a file with the bound name can be
         created by the task when it runs
         """
-        raise UnimplementedException("_touch_file() not implemented for base file channel")
+        raise UnimplementedException("_touch_file() not implemented for base file ivar")
 
     def _mktmp(self):
         """
@@ -168,19 +168,19 @@ class FileChannel(AtomicChannel):
     def _open_read(self):
         #TODO: exception types
         if not self._future.isSet():
-            raise Exception("Reading from unset file channel")
+            raise Exception("Reading from unset file ivar")
         elif not self._fileExists(self._bound):
             raise Exception("Reading from nonexistent file")
 
     def _fileExists(self):
         raise UnimplementedException("_fileExists not overriden on file \
-                channel object") 
+                ivar object") 
 
 
     def _has_data(self):
         """
         Check to see if it is possible to start reading from this
-        channel now
+        ivar now
         """
         if self._bound is not Unbound:
             return self._fileExists(self._bound)
@@ -197,7 +197,7 @@ class FileChannel(AtomicChannel):
         won't escape this object.
         """
         # Don't lock, as GC was called can assume that no references held
-        logging.debug("__del__ called on File channel")
+        logging.debug("__del__ called on File ivar")
         if self._temp_created: 
             self._cleanup_tmp(self._bound)
             self._bound = None
@@ -207,12 +207,12 @@ class FileChannel(AtomicChannel):
         with graph_mutex:
             if not self._bound:
                 #TODO
-                raise Exception("Cannot copy unbound FileChannel %s" %(repr(self))) 
-            if self._state in (CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED):
+                raise Exception("Cannot copy unbound FileIvar %s" %(repr(self))) 
+            if self._state in (IVAR_OPEN_RW, IVAR_OPEN_R, IVAR_DONE_FILLED):
                 self._docopy(self._bound, dest)
             else:   
                 #TODO
-                raise Exception("Cannot copy FileChannel %s, invalid state" % (repr(self)))
+                raise Exception("Cannot copy FileIvar %s, invalid state" % (repr(self)))
 
     def _docopy(self, src, dest):
         """
@@ -232,10 +232,10 @@ class FileChannel(AtomicChannel):
         return self._bound
 
 
-class LocalFileChannel(FileChannel):
+class LocalFileIvar(FileIvar):
     def __init__(self, *args, **kwargs):
         #TODO: expand bound path
-        super(LocalFileChannel, self).__init__(*args, **kwargs)
+        super(LocalFileIvar, self).__init__(*args, **kwargs)
         if self._bound is not Unbound:
             # Change to absolute path so that any subsequent changes
             # to OS working directory won't cause issues'
@@ -299,7 +299,7 @@ class AppTask(AtomicTask):
         
     def _exec(self, continuation, failure_continuation,  contstack):
         
-        # Lock while we gather up the input and output channels
+        # Lock while we gather up the input and output ivars
         logging.debug("Gathering input values for %s" % repr(self))
         logging.debug("Inputs: %s" %(repr(self._inputs)))
         with graph_mutex:
@@ -322,11 +322,11 @@ class AppTask(AtomicTask):
     
     def _prepare_command(self):
         """
-        Initializes i/o channels and collects data
+        Initializes i/o ivars and collects data
         This presumes that graph_mutex is nt held prior to calling
         """
         with graph_mutex:
-            self._prep_channels()
+            self._prep_ivars()
             out_paths =   [output._bound for output in self._outputs]
             
         app_object = self._func(*self._input_data)

@@ -2,12 +2,12 @@
 @author: Tim Armstrong
 '''
 import unittest
-from PyDFlow.futures import Future
+from PyDFlow.writeonce import WriteOnceVar
 import threading as th
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 
-class TestFuture(PyDFlowTest):
+class TestWriteOnce(PyDFlowTest):
 
 
     def setUp(self):
@@ -22,18 +22,18 @@ class TestFuture(PyDFlowTest):
         pass
 
     def testGet(self):
-        x = Future()
+        x = WriteOnceVar()
         x.set(32)
         self.assertEquals(x.get(), 32)
         
     def testIsSet(self):
-        x = Future()
+        x = WriteOnceVar()
         self.assertFalse(x.isSet())
         x.set("hello")
         self.assertTrue(x.isSet())
     
     def testSetGet(self):
-        x = Future()
+        x = WriteOnceVar()
         setTh = th.Thread(target=(lambda: x.set(32)))
         setTh.run()
         self.assertEquals(x.get(), 32)
@@ -45,10 +45,10 @@ class TestFuture(PyDFlowTest):
         """
         Swap data between three threads
         """
-        r1 = Future() 
-        r2 = Future()
-        x = Future()
-        y = Future()
+        r1 = WriteOnceVar() 
+        r2 = WriteOnceVar()
+        x = WriteOnceVar()
+        y = WriteOnceVar()
         def t1():
             x.set("one")
             r1.set(y.get())
@@ -73,15 +73,15 @@ class TestFuture(PyDFlowTest):
         
     def testReply(self):
         '''
-        Send reply channel down request channel. 
+        Send reply ivar down request ivar 
         '''
-        requestCh = Future()
+        requestCh = WriteOnceVar()
         def t():
             reply = requestCh.get()
             reply.set("hello!!")
             
         th.Thread(target=t).start()
-        replyCh = Future()
+        replyCh = WriteOnceVar()
         requestCh.set(replyCh)
         self.assertEquals(replyCh.get(), "hello!!")
         

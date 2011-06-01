@@ -6,14 +6,14 @@ from PyDFlow.PyFun import *
 from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 from PyDFlow.types.check import FlTypeError, Multiple
 
-Int = future.subtype()
+Int = py_ivar.subtype()
 
-@func((future), (future, Int, int))
+@func((py_ivar), (py_ivar, Int, int))
 def fn(x, y, z):
     return x * (y + z)
         
 
-@func((future), (future, Int, int))
+@func((py_ivar), (py_ivar, Int, int))
 def fn_opt(x, y=Int(3), z=7):
     return x * (y + z)
         
@@ -36,7 +36,7 @@ class TestArgHandling(PyDFlowTest):
         
         # Wrong types
         self.assertRaises(FlTypeError, lambda: fn(Int(1), Int(2), "hello").get())
-        self.assertRaises(FlTypeError, lambda: fn(Int(1), future(2), 2).get())
+        self.assertRaises(FlTypeError, lambda: fn(Int(1), py_ivar(2), 2).get())
         
         # reordered
         self.assertRaises(FlTypeError, lambda: fn(Int(1), 3, Int(2)).get())
@@ -50,7 +50,7 @@ class TestArgHandling(PyDFlowTest):
     
     def testWrongNumberKW(self):
         # extra
-        self.assertRaises(FlTypeError, lambda: fn(Int(3), z=2, y=Int(1), x=future(1)).get())
+        self.assertRaises(FlTypeError, lambda: fn(Int(3), z=2, y=Int(1), x=py_ivar(1)).get())
         # missing
         self.assertRaises(FlTypeError, lambda: fn(Int(3), y=Int(1)).get())
         #switched
@@ -70,14 +70,14 @@ class TestArgHandling(PyDFlowTest):
         
         # Wrong types
         self.assertRaises(FlTypeError, lambda: fn_opt(Int(1), Int(2), "hello").get())
-        self.assertRaises(FlTypeError, lambda: fn_opt(Int(1), future(2), 2).get())
+        self.assertRaises(FlTypeError, lambda: fn_opt(Int(1), py_ivar(2), 2).get())
         
         # reordered
         self.assertRaises(FlTypeError, lambda: fn_opt(Int(1), 3, Int(2)).get())
         
         # keyword
         # extra
-        self.assertRaises(FlTypeError, lambda: fn_opt(Int(3), z=2, y=Int(1), x=future(1)).get())
+        self.assertRaises(FlTypeError, lambda: fn_opt(Int(3), z=2, y=Int(1), x=py_ivar(1)).get())
         # missing non-optional
         self.assertRaises(FlTypeError, lambda: fn_opt().get())
         #switched
@@ -104,7 +104,7 @@ class TestArgHandling(PyDFlowTest):
         self.assertEqual(prod(Int(2), Int(3), Int(4)).get(), 24)
     
     def testNoArg(self):
-        @func((future), ())
+        @func((py_ivar), ())
         def noarg():
             return 1
         

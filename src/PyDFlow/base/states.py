@@ -19,26 +19,26 @@ task_state_name = {
     T_ERROR: 'T_ERROR'}
 
 #=================#
-# CHANNEL STATES  #
+# IVAR STATES  #
 #=================#
-CH_CLOSED, CH_CLOSED_WAITING, \
-        CH_OPEN_W, CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED, CH_DONE_DESTROYED, \
-        CH_ERROR, CH_REPLACED = range(9)
+IVAR_CLOSED, IVAR_CLOSED_WAITING, \
+        IVAR_OPEN_W, IVAR_OPEN_RW, IVAR_OPEN_R, IVAR_DONE_FILLED, IVAR_DONE_DESTROYED, \
+        IVAR_ERROR, IVAR_REPLACED = range(9)
 
-channel_state_name = {
-        CH_CLOSED: 'CH_CLOSED',
-        CH_CLOSED_WAITING: 'CH_CLOSED_WAITING',
-        CH_OPEN_W: 'CH_OPEN_W',
-        CH_OPEN_RW: 'CH_OPEN_RW',
-        CH_OPEN_R: 'CH_OPEN_R',
-        CH_DONE_FILLED: 'CH_DONE_FILLED',
-        CH_DONE_DESTROYED: 'CH_DONE_DESTROYED',
-        CH_ERROR: 'CH_ERROR',
-        CH_REPLACED: 'CH_REPLACED'}
+ivar_state_name = {
+        IVAR_CLOSED: 'IVAR_CLOSED',
+        IVAR_CLOSED_WAITING: 'IVAR_CLOSED_WAITING',
+        IVAR_OPEN_W: 'IVAR_OPEN_W',
+        IVAR_OPEN_RW: 'IVAR_OPEN_RW',
+        IVAR_OPEN_R: 'IVAR_OPEN_R',
+        IVAR_DONE_FILLED: 'IVAR_DONE_FILLED',
+        IVAR_DONE_DESTROYED: 'IVAR_DONE_DESTROYED',
+        IVAR_ERROR: 'IVAR_ERROR',
+        IVAR_REPLACED: 'IVAR_REPLACED'}
 #TODO: garbage collection state: destroy the data if no output tasks depend
 # on it?
 
 #================================#
-# Channel modes for prepare call #
+# Ivar modes for prepare call #
 #================================#
 M_READ, M_WRITE, M_READWRITE = range(3)

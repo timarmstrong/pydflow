@@ -21,7 +21,7 @@ import threading
 import Queue
 import logging
 from collections import deque 
-from PyDFlow.futures import Future
+from PyDFlow.writeonce import WriteOnceVar
 from PyDFlow.base.states import *
 from PyDFlow.base.mutex import graph_mutex
  
@@ -80,18 +80,18 @@ def init():
         t.start()
 
 # Use future to ensure init() run exactly once
-initFuture = Future(function=init)
+initFuture = WriteOnceVar(function=init)
 
-def exec_async(channel):
+def exec_async(ivar):
     """
-    Takes a channel and fills it at some point in the future
+    Takes a ivar and fills it at some point in the future
     """
     # Ensure workers are initialized
     logging.debug("Entered exec_async")
     initFuture.get()
-    logging.debug("Added channel to work queue")
+    logging.debug("Added ivar to work queue")
     with idle_worker_cvar:
-        in_queue.put(channel)
+        in_queue.put(ivar)
         idle_worker_cvar.notifyAll()
     logging.debug("Exiting exec_async")
 
@@ -114,31 +114,31 @@ def fail_tasks(tasks, continuation, exceptions):
             ch._fail(exceptions)
             tasks.extend(ch._out_tasks)
 
-def fail_channel(channel, exceptions):
-    channel._fail(exceptions)
-    if channel._out_tasks is not None:
-        fail_tasks(channel._out_tasks, [], exceptions)
+def fail_ivar(ivar, exceptions):
+    ivar._fail(exceptions)
+    if ivar._out_tasks is not None:
+        fail_tasks(ivar._out_tasks, [], exceptions)
 
-def makeframe(channel, continuation):
+def makeframe(ivar, continuation):
     """
     Make a deque frame from a task. Graph mutex should be held.
     """
     deps = []
     try:
-        if channel._in_tasks is not None:
-            for task in channel._in_tasks:
+        if ivar._in_tasks is not None:
+            for task in ivar._in_tasks:
                 for spec, ch in task._input_iter():
                     #TODO: support lazy/strict
                     if not spec.isRaw() and not ch._try_readable():
-                        if ch._state == CH_ERROR:
+                        if ch._state == IVAR_ERROR:
                             fail_task(task, continuation, ch._exception.causes)
                             return None
                         deps.append(ch)
     except NoDataException, ex:
-        # If input channel can't be read
-        fail_channel(channel, [ex])
+        # If input ivar can't be read
+        fail_ivar(ivar, [ex])
         return None
-    return (channel, deps, continuation)
+    return (ivar, deps, continuation)
 
 class WorkerThread(threading.Thread):
     """ 
@@ -149,13 +149,13 @@ class WorkerThread(threading.Thread):
     work-stealing.  It contains suspended tasks that are candidates for workstealing.
     
     Each internal element has the following structure:
-        (channel_that_needs_filling, dependency_list, continuation_list)
-        channel_that_needs_filling: a channel object which has been suspended due to dependencies
-        dependency_list: a list of input channels which need to be filled in order to allow
-                    task to run to file the above channel
+        (ivar_that_needs_filling, dependency_list, continuation_list)
+        ivar_that_needs_filling: a ivar object which has been suspended due to dependencies
+        dependency_list: a list of input ivars which need to be filled in order to allow
+                    task to run to file the above ivar
                     each entry is replaced by None when finished.
         continuation_list: a sequence of tasks that can be run from last-to-first once
-                the channel is filled
+                the ivar is filled
     """
     def __init__(self, in_queue, resume_queue, worker_num, work_deque):
         threading.Thread.__init__(self, name=("%s_%d" % (PYFUN_THREAD_NAME, worker_num)))
@@ -194,13 +194,13 @@ class WorkerThread(threading.Thread):
             
             logging.debug("%s try to run from new work queue" % self.getName())
             # Try to get work from global queue (until timeout) 
-            chan = self.get_from_queue(self.in_queue, random.random() > 0.5, 
+            iv = self.get_from_queue(self.in_queue, random.random() > 0.5, 
                                         QUEUE_TIMEOUT * random.random())
             
                 
-            if chan is not None:
+            if iv is not None:
                 with graph_mutex:
-                    frame = makeframe(chan, [])
+                    frame = makeframe(iv, [])
                 if frame is not None:
                     logging.debug("%s running from new work queue" % self.getName())
                     self.eval_frame(frame)
@@ -227,12 +227,12 @@ class WorkerThread(threading.Thread):
         Start the task running.  State should eb set to T_QUEUED
         graph_mutex shoudl not be held
         """
-        chan = frame[0]
+        iv = frame[0]
         # assume for now <= 1, can revisit assumption later
         # It shuoldn't be 0, because we shouldn't be executing
         # task if it gets to that point
-        assert(len(chan._in_tasks) == 1) 
-        task = chan._in_tasks[0]
+        assert(len(iv._in_tasks) == 1) 
+        task = iv._in_tasks[0]
         contstack = frame[2]
 
         logging.debug("%s starting task %s" % (self.getName(), repr(task)))
@@ -378,8 +378,8 @@ class WorkerThread(threading.Thread):
             
     def eval_frame(self, frame):
         """
-        frame is: (channel, 
-                [channel dependencies which may not have been picked by an evaluator],
+        frame is: (ivar, 
+                [ivar dependencies which may not have been picked by an evaluator],
                 [list of tasks to run following immediately])
          If ready to run, this thread runs the task
          If not, it searches the graph until it finds a runnable task, adding branches to the deque. 
@@ -389,29 +389,29 @@ class WorkerThread(threading.Thread):
         ch = frame[0]
                 
         graph_mutex.acquire()
-        # Expand the channel as needed
+        # Expand the ivar as needed
         while hasattr(ch, '_proxy_for'):
             #TODO: handle non-lazy arguments
             ch = ch._expand()
-            logging.debug("expanded channel to %s " % repr(ch))
+            logging.debug("expanded ivar to %s " % repr(ch))
         frame = (ch, frame[1], frame[2])
         
         chstate = ch._state
-        if chstate in (CH_DONE_FILLED, CH_OPEN_W, CH_OPEN_R, CH_OPEN_RW):
-            # Channel is filled or will be filled by something else 
+        if chstate in (IVAR_DONE_FILLED, IVAR_OPEN_W, IVAR_OPEN_R, IVAR_OPEN_RW):
+            # Ivar is filled or will be filled by something else 
             graph_mutex.release()
             return
-        elif chstate == CH_ERROR:
+        elif chstate == IVAR_ERROR:
             # Exception should already be propagated, just return
             graph_mutex.release()
             return
-        elif chstate in (CH_CLOSED, CH_CLOSED_WAITING):
+        elif chstate in (IVAR_CLOSED, IVAR_CLOSED_WAITING):
             # Continue on to evaluate
             pass
         else:
-            raise Exception("Invalid channel state for %s" % repr(frame))
+            raise Exception("Invalid ivar state for %s" % repr(frame))
         
-        #TODO: check channel state
+        #TODO: check ivar state
         assert(len(ch._in_tasks) == 1)
         task = ch._in_tasks[0]
         state = task._state
@@ -438,7 +438,7 @@ class WorkerThread(threading.Thread):
                 
         elif state == T_ERROR:
             # Exception should already be propagated, just return
-            assert(ch._state == CH_ERROR)
+            assert(ch._state == IVAR_ERROR)
             graph_mutex.release()
             return
         else:
@@ -453,7 +453,7 @@ class WorkerThread(threading.Thread):
         
         It gathers all of the tasks which have only a single dependency.
         
-        Returns a task frame with a channel with input task state T_DATA_READY, and continuation
+        Returns a task frame with a ivar with input task state T_DATA_READY, and continuation
         with all tasks set to T_CONTINUATION
         or None if nothing to run
         """
@@ -465,26 +465,26 @@ class WorkerThread(threading.Thread):
             dep_count = 0 # number of tasks that need to finish before this task can run
             ch, deps, continuation = taskframe
             
-            # Shouldn't get here unless channel has input tasks
+            # Shouldn't get here unless ivar has input tasks
             assert(len(ch._in_tasks) == 1)
             task = ch._in_tasks[0]
             next_ch = None
             
             # Looks at inputs that might not yet be ready
             for i, ch in enumerate(deps):
-                # TODO: check for placeholder channel and expand it at this point
-                # TODO: this is assuming atomic channel
+                # TODO: check for placeholder ivar and expand it at this point
+                # TODO: this is assuming atomic ivar
                 # don't need to check if we just created frame while we were holding lock
                 if ch is None:  
                     continue
-                elif ch._state == CH_ERROR:
+                elif ch._state == IVAR_ERROR:
                     fail_task(task, continuation, ch._exception.causes)
                     continue
                 elif hasattr(ch, '_proxy_for'):
                     ch = ch._expand()
                     while hasattr(ch, '_proxy_for'):
                         ch = ch._expand()
-                    logging.debug("expanded channel to %s " % repr(ch))
+                    logging.debug("expanded ivar to %s " % repr(ch))
                     deps[i] = ch
                 # Recheck state
                 if ch._readable():                          
@@ -492,11 +492,11 @@ class WorkerThread(threading.Thread):
                     logging.debug("%s became readable" % repr(ch))
                     deps[i] = None
                     continue
-                elif ch._state == CH_ERROR:
+                elif ch._state == IVAR_ERROR:
                     fail_task(task, continuation, ch._exception.causes)
                     return
-                elif ch._state == CH_CLOSED:
-                    ch._state = CH_CLOSED_WAITING 
+                elif ch._state == IVAR_CLOSED:
+                    ch._state = IVAR_CLOSED_WAITING 
                 
                 # Next task to look at
                 logging.debug("%s, %s" % (repr(ch), repr(ch._in_tasks)))
@@ -532,7 +532,7 @@ class WorkerThread(threading.Thread):
                 if next_ch and dep_count > 1:
                     break
             
-            logging.debug("Depends on %d more channels, next channel is %s" % (dep_count, next_ch))
+            logging.debug("Depends on %d more ivars, next ivar is %s" % (dep_count, next_ch))
             if dep_count == 0:
                 if task._state == T_DATA_READY:
                     # it is possible that the task became runnable if it was a compound
@@ -571,19 +571,19 @@ class WorkerThread(threading.Thread):
                     logging.debug("Suspending task frame %s until dependencies avail"
                                   % repr(taskframe))
                     #TODO: really need to think about how this will work in presence of multiple
-                    #     channels
+                    #     ivars
                     # constraints:
                     #  - task state should be set to T_DATA_WAIT so that no other evaluators will
                     #    attempt to modify it
-                    #  - multiple threads may finish evaluating channels at same time
-                    #  - other evaluators may be evaluating channels at same time
+                    #  - multiple threads may finish evaluating ivars at same time
+                    #  - other evaluators may be evaluating ivars at same time
                     #  - 
                     
                     # Make callback closure
-                    def task_resumer(channel):
+                    def task_resumer(ivar):
                         # graph mutex will be held when this called
                         try:
-                            ch_index = taskframe[1].index(channel)
+                            ch_index = taskframe[1].index(ivar)
                             taskframe[1][ch_index] = None
                         except ValueError:
                             pass
@@ -595,12 +595,12 @@ class WorkerThread(threading.Thread):
                         logging.debug("task resumer resuming taskframe:%s" % (repr(taskframe)))
                         resume_taskframe(taskframe)
                         
-                    for channel in taskframe[1]:
-                        if channel is not None:
+                    for ivar in taskframe[1]:
+                        if ivar is not None:
                             #TODO: assuming atomic?
-                            # All channels are already being evaluated by other threads:
+                            # All ivars are already being evaluated by other threads:
                             #     just register for notifications
-                            channel._spark(done_callback=task_resumer)
+                            ivar._spark(done_callback=task_resumer)
                     # exit
                     return None
                     
@@ -617,7 +617,7 @@ def isWorkerThread(thread=None):
     name = thread.getName()
     return name[:len(PYFUN_THREAD_NAME)] == PYFUN_THREAD_NAME
 
-def spark_recursive(channel):
+def spark_recursive(ivar):
     """
     Assume we are holding the global mutex when this is called
     """
@@ -627,20 +627,20 @@ def spark_recursive(channel):
         raise Exception("Non-worker thread running spark_recursive")
      
     
-    #assert(len(channel._in_tasks) == 1)
-    #task = channel._in_tasks[0]
-    state = channel._state
-    if state in (CH_CLOSED, CH_DONE_DESTROYED):
-        frame = makeframe(channel, [])
+    #assert(len(ivar._in_tasks) == 1)
+    #task = ivar._in_tasks[0]
+    state = ivar._state
+    if state in (IVAR_CLOSED, IVAR_DONE_DESTROYED):
+        frame = makeframe(ivar, [])
         must_run = True
-    elif state in (CH_CLOSED_WAITING, CH_DONE_FILLED, CH_OPEN_RW, CH_OPEN_W):
+    elif state in (IVAR_CLOSED_WAITING, IVAR_DONE_FILLED, IVAR_OPEN_RW, IVAR_OPEN_W):
         must_run = False
-    elif state == CH_ERROR:
+    elif state == IVAR_ERROR:
         # exception needs to percolate up to next task running 
         raise Exception("%s encountered an error in recursive invocation" % 
-                                                                repr(channel))
+                                                                repr(ivar))
     else:
-        raise Exception("%s had invalid state" % repr(channel))
+        raise Exception("%s had invalid state" % repr(ivar))
     
 
     if not must_run:
@@ -677,9 +677,9 @@ def success_continuation(task, return_val, contstack):
             #TODO: exception type
             raise Exception("Got None return value")
         
-        # Fill in all the output channels
+        # Fill in all the output ivars
         if len(task._outputs) == 1:
-            # Update current state, then pass data to channels
+            # Update current state, then pass data to ivars
             task._state = T_DONE_SUCCESS
             task._outputs[0]._set(return_val)
         else:
@@ -691,10 +691,10 @@ def success_continuation(task, return_val, contstack):
             if len(return_vals) != len(task._outputs):
                 raise Exception("Expected tuple or list of length %d as output, but got something of length" % (len(task._outputs), len(return_vals)))
     
-            # Update current state, then pass data to channels
+            # Update current state, then pass data to ivars
             task._state = T_DONE_SUCCESS
-            for val, chan in zip(return_vals, task._outputs) :
-                chan._set(val)
+            for val, iv in zip(return_vals, task._outputs) :
+                iv._set(val)
         if contstack is not None and len(contstack) > 0:
             contstack[0]._state = T_DATA_READY # revert from T_CONTINUATION
             with idle_worker_cvar:

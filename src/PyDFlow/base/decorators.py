@@ -16,8 +16,8 @@ class task_decorator(object):
 
     In general, this decorator, upon decoratinga  function, needs to
     produce a callable object which, when called with proper arguments,
-    creates a PyDFlow Task and its output channels, and returns the output
-    channels.
+    creates a PyDFlow Task and its output Ivars, and returns the output
+    Ivars.
 
     The decorator will add logic to validate the inputs of the  function
     against a provided type signature.
@@ -116,7 +116,7 @@ class TaskWrapper(object):
         self._taskname = func.__name__
 
     def __call__(self, *args, **kwargs):
-        # Set up the input/output channels and the tasks, plugging
+        # Set up the input/output Ivars and the tasks, plugging
         # them all together and validating types
 
         kwargs['_taskname']=self._taskname

@@ -20,9 +20,9 @@ TODO: how do we handle mallocing.  The host thread must do the mallocing,
     Ideas:
     - Have this module receive references to a CUDATask, and trace back through
        the graph to figure out what must be done.
-    - Pass CUDAChannel references into this class - the outputchannel of a 
+    - Pass CUDAIvar references into this class - the output ivar of a 
         given task, and have the host thread fill in a dev_ptr in the 
-        CUDAChannel immediately before launching an asynchronous task
+        CUDAIvar immediately before launching an asynchronous task
     - Some scheme where there is a separate mallocing queue
 
 @author: Tim Armstrong
@@ -51,24 +51,26 @@ def new_stream():
     """
     return StreamHandle()
 
-def do_memcpy_h_d_async(chan, callback, stream=None):
+def do_memcpy_h_d_async(ivar, callback, stream=None):
     # TODO: add to queue of tasks to run
     pass
 
 
 
-def do_memcpy_d_h_async(chan, callback, stream=None):
+def do_memcpy_d_h_async(ivar, callback, stream=None):
     # TODO same recipe as above
     pass
 
-def do_memcpy_d_h(chan, stream=None):
+def do_memcpy_d_h(ivar, stream=None):
+    pass
     # TODO: set up a cond var
 
     # TODO: launch the async version, with a callback that signals cond
     #    var
     # TODO: block on cv
 
-def do_kernel_async(kernel_func, output_chans, callback, stream=None):
+def do_kernel_async(kernel_func, output_ivars, callback, stream=None):
+    pass
     # TODO: add to queue
 
 
@@ -90,12 +92,12 @@ def run_jobs(job_list, stream, callback):
     # once they're all done
     pass
 
-def run_memcpy_h_d(chan, callback, stream):
+def run_memcpy_h_d(ivar, callback, stream):
     #TODO: launch copy
 
     #TODO: setup something to watch the memcpy, and add it to a queue
 
     return stream
 
-def run_kernel_async(kernel_func, output_chans, callback, stream=None):
+def run_kernel_async(kernel_func, output_ivars, callback, stream=None):
     #TODO: 

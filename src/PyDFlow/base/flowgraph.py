@@ -1,10 +1,10 @@
 from __future__ import with_statement
 """
-Implements the FlowGraph, a bipartite graph of Tasks and Channels which
+Implements the FlowGraph, a bipartite graph of Tasks and Ivars which
 represents the program to be executed.
 
 Naming conventions:
-For Task and Channel derivatives, a method or field prefixed with _ is intended
+For Task and Ivar derivatives, a method or field prefixed with _ is intended
 for internal use only and may reqire a lock to be held when calling.  A method 
 prefixed with _ may be intended to be overridden
 
@@ -24,7 +24,7 @@ from exceptions import *
 from PyDFlow.types.check import validate_swap
 
 
-# Channels are set to this if there is an error.
+# Ivars are set to this if there is an error.
 ErrorVal = object()
 
 
@@ -32,7 +32,7 @@ class Task(object):
     def __init__(self, descriptor, *args, **kwargs):
         # Set the state to this value, however it can be overwritten
         # by child classes, as it migh tbe possible for some task
-        # types to start running if not all channels are ready
+        # types to start running if not all Ivars are ready
         taskname = kwargs.pop('_taskname', None)
         if descriptor.input_count() == 0:
             self._state = T_DATA_READY
@@ -101,7 +101,7 @@ class Task(object):
 
     def _setup_outputs(self, **kwargs):
         outputs = None
-        # Setup output channels
+        # Setup output Ivars
         if "_outputs" in kwargs:
             outputs = kwargs["_outputs"]
         elif "_out" in kwargs:
@@ -113,7 +113,7 @@ class Task(object):
             outputs = self._descriptor.make_outputs()
         self._outputs = outputs
 
-        # Connect up this task as an output for the channel
+        # Connect up this task as an output for the Ivar
         for o in outputs:
             o._register_input(self)
 
@@ -138,9 +138,9 @@ class Task(object):
     def _input_readable(self, input, oldstate, newstate):
         """
         Called when an input changes state to one where there is some
-        valid data in the channel from one in which nothing could be
-        read in the channel.
-        This keeps track of the number of the number of not ready channels
+        valid data in the Ivar from one in which nothing could be
+        read in the Ivar.
+        This keeps track of the number of the number of not ready Ivars
         and calls back all callbacks registered in self._all_inputs_ready 
         
         Can be overridden in a child class but this version must be called 
@@ -162,7 +162,7 @@ class Task(object):
 
     def _output_replace(self, old, new):
         """
-        Swap out an old output channel with a new one.
+        Swap out an old output Ivar with a new one.
         """
         for i, o in enumerate(self._outputs):
             if o is old:
@@ -170,7 +170,7 @@ class Task(object):
                 
     def _input_replace(self, old, new):
         """
-        Swap out an old output channel with a new one.
+        Swap out an old output Ivar with a new one.
         """
         for i, o in enumerate(self._inputs):
             if o is old:
@@ -203,10 +203,10 @@ Unbound = object()
 
 
 
-class Channel(flvar):
+class Ivar(flvar):
     """
-    Channels form the other half of the bipartite graph, alongside tasks.
-    This class is an abstract base class for all other channels to derive 
+    Ivars form the other half of the bipartite graph, alongside tasks.
+    This class is an abstract base class for all other Ivars to derive 
     from
     """
     def __init__(self, bound=Unbound):
@@ -214,10 +214,10 @@ class Channel(flvar):
         bound_to is a location that the data will come from
         or will be written to.
         """
-        super(Channel, self).__init__()
+        super(Ivar, self).__init__()
         self._in_tasks = []
         self._out_tasks = []
-        self._state = CH_CLOSED
+        self._state = IVAR_CLOSED
         self._bound = bound
         self._done_callbacks = []
         self._reliable = False
@@ -226,17 +226,17 @@ class Channel(flvar):
   
     def __repr__(self):
         return "<PyDFlow %s %x %s | >" % (type(self).__name__, id(self),  
-                                                     channel_state_name[self._state])
-  
+                                                     ivar_state_name[self._state])
+
      
     def __lshift__(self, oth):
         """
-        "Assigns" the channel on the right hand side to this one.
-        More accurately, merges the data from the RHS channel
-        into the LHS channel, 
-        making sure that the data from the RHS channel
-        is redirected to the LHS channel and also that channel
-        retains all the same settings as the LHS channel.
+        "Assigns" the Ivar on the right hand side to this one.
+        More accurately, merges the data from the RHS Ivar
+        into the LHS Ivar, 
+        making sure that the data from the RHS Ivar
+        is redirected to the LHS Ivar and also that Ivar
+        retains all the same settings as the LHS Ivar.
         """
         with graph_mutex:
             oth._replacewith(self)
@@ -257,18 +257,18 @@ class Channel(flvar):
     
     def _replacewith(self, other):
         """
-        Replace this channel with a different channel in all
-        input tasks. We can assume that the other channel is
+        Replace this Ivar with a different Ivar in all
+        input tasks. We can assume that the other Ivar is
         freshly created and no references are held to it.
         The default behaviour will be to keep all the data 
-        and state associated with this channel, but make sure
+        and state associated with this Ivar, but make sure
         that all tasks with output going into other are redirected 
         here.
         """
-        if self._state != CH_CLOSED:
+        if self._state != IVAR_CLOSED:
             #TODO: we could try to resolve this situation
             raise InvalidReplaceException("Cannot redirect task output from " +
-                        "channel %s to channel %s as first channel has been forced, is being written"
+                        "Ivar %s to Ivar %s as first Ivar has been forced, is being written"
                         "to, or already has data" % (repr(self), repr(other)))
         
         # typecheck
@@ -278,9 +278,9 @@ class Channel(flvar):
             t._output_replace(self, other)
             
         other._in_tasks = self._in_tasks
-        # This channel should no longer be used
+        # This Ivar should no longer be used
 
-        self._state = CH_REPLACED
+        self._state = IVAR_REPLACED
         self._replaced_with = other
         self._future = None
         self._bound = None
@@ -288,11 +288,11 @@ class Channel(flvar):
     def _prepare(self, mode):
         """
         Called by an input or output task to indicate that the
-        channel should get ready to be read from/written to.
+        Ivar should get ready to be read from/written to.
 
         It should only be called if there is a valid transition 
-        from the current state to CH_OPEN_* as appropriate, ie.
-        so that the channel becomes immediately open.
+        from the current state to IVAR_OPEN_* as appropriate, ie.
+        so that the Ivar becomes immediately open.
         TODO: intermediate states if preparation takes some time?
 
         TODO: change state as appropriate?
@@ -304,8 +304,8 @@ class Channel(flvar):
 
     def _register_input(self, input_task):
         """
-        called when a task wants to write to this channel
-        Returns True if the channel is ready to be written to
+        called when a task wants to write to this Ivar
+        Returns True if the Ivar is ready to be written to
 
         Default implementation simply adds to list of input
         tasks regardless.  Should be overridden with an
@@ -317,8 +317,8 @@ class Channel(flvar):
 
     def _register_output(self, output_task):
         """
-        called when a task wants to read from this channel.
-        Returns True if the channel is ready to be read from
+        called when a task wants to read from this Ivar.
+        Returns True if the Ivar is ready to be read from
 
         Default implementation simply adds to list of input
         tasks regardless.  Should be overridden with an
@@ -327,7 +327,7 @@ class Channel(flvar):
         """
         self._out_tasks.append(output_task)
         #TODO: right?
-        return self._state in [CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED]
+        return self._state in [IVAR_OPEN_RW, IVAR_OPEN_R, IVAR_DONE_FILLED]
 
     def add_input(self, input_task):
         global graph_mutex
@@ -347,7 +347,7 @@ class Channel(flvar):
         """
         TODO: doco
         """
-        raise UnimplementedException("get not implemented on base Channel class")
+        raise UnimplementedException("get not implemented on base Ivar class")
 
     def _spark(self, done_callback=None):
         """
@@ -355,11 +355,11 @@ class Channel(flvar):
         Should be overridden.  The overriding method definition should:
         check states of inputs, update own state, start any inputs running
         """
-        raise UnimplementedException("spark not implemented on base Channel class")
+        raise UnimplementedException("spark not implemented on base Ivar class")
     
     def spark(self, done_callback=None):
         """
-        Ensure that at some point in the future this channel will be filled.
+        Ensure that at some point in the future this Ivar will be filled.
         I.e. if it is runnable, start it running, otherwise make sure that
         the task's inputs will be filled.
         """
@@ -374,10 +374,10 @@ class Channel(flvar):
     def _fail(self, exceptions):
         logging.debug("%s failed with exceptions %s" % (repr(self), 
                                                         repr(exceptions)))
-        if self._state == CH_ERROR:
+        if self._state == IVAR_ERROR:
             self._exception.add_exceptions(exceptions)
         else:
-            self._state = CH_ERROR
+            self._state = IVAR_ERROR
             self._exception = ExecutionException(exceptions)
             # Should not be possible to call if future already set
             # TODO: set future? 
@@ -386,7 +386,7 @@ class Channel(flvar):
         
     def state(self):
         """
-        Return the current state of the channel
+        Return the current state of the Ivar
         """
         with graph_mutex:
             res = self._state
@@ -394,10 +394,10 @@ class Channel(flvar):
 
     def readable(self):
         """
-        Returns a boolean indicating whether the channel
+        Returns a boolean indicating whether the Ivar
         can be read from without blocking.
 
-        This should be overridden as it depends on the type of channel.
+        This should be overridden as it depends on the type of Ivar.
         """
         raise UnimplementedException("readable is not implemented")
 

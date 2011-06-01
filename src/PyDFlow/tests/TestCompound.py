@@ -4,7 +4,7 @@ Created on Feb 28, 2011
 '''
 import unittest
 import logging 
-from PyDFlow.PyFun import future, func, compound
+from PyDFlow.PyFun import py_ivar, func, compound
 from PyDFlow.base.states import *
 
 from PyDFlow.types import Multiple
@@ -12,7 +12,7 @@ from PyDFlow.tests.PyDFlowTest import PyDFlowTest
 
 #logging.basicConfig(level=logging.DEBUG)
 
-Int = future.subtype()
+Int = py_ivar.subtype()
 
 
 @func((Int), (Int, Int))
@@ -63,6 +63,7 @@ class TestCompound(PyDFlowTest):
 
 
     def setUp(self):
+        pass
         #from stacktrace import trace_start
         import os
         #try:
@@ -72,6 +73,7 @@ class TestCompound(PyDFlowTest):
         #trace_start("trace.html")
 
     def tearDown(self):
+        pass
         #from stacktrace import trace_stop
         #trace_stop()
     
@@ -81,7 +83,7 @@ class TestCompound(PyDFlowTest):
     def testId(self):
         x = id(Int(10))
 #        while True:
-#            print channel_state_name[x._state]
+#            print ivar_state_name[x._state]
         self.assertEquals(id(Int(10)).get(), 10)
         
        
@@ -130,7 +132,7 @@ class TestCompound(PyDFlowTest):
             
          #   return printn(n)
             
-        #@func((future), (Int))
+        #@func((py_ivar), (Int))
         ##def printn(n):
         #    print n
         #a    return None

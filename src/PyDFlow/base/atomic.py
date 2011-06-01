@@ -2,9 +2,9 @@
 @author: Tim Armstrong
 '''
 from __future__ import with_statement
-from flowgraph import Task, Channel, Unbound
+from flowgraph import Task, Ivar, Unbound
 from states import *
-from PyDFlow.futures.futures import Future
+from PyDFlow.writeonce import WriteOnceVar
 from PyDFlow.base.exceptions import *
 from PyDFlow.base.mutex import graph_mutex
 
@@ -18,8 +18,8 @@ from PyDFlow.base.flowgraph import ErrorVal
 class AtomicTask(Task):
     """
     An atomic task can be bound to a future variable.
-    The state of the channel is synchronized with the state of
-    the future variable.  That is, the channel can only be read from if
+    The state of the Ivar is synchronized with the state of
+    the future variable.  That is, the Ivar can only be read from if
     the variable is unset and only written to if the variable is set
     """
     def __init__(self, *args, **kwargs):
@@ -58,7 +58,7 @@ class AtomicTask(Task):
 
         return input_data
 
-    def _prep_channels(self):
+    def _prep_ivars(self):
         for s, o in self._input_iter():
             if not s.isRaw():
                 o._prepare(M_READ)
@@ -69,13 +69,13 @@ class AtomicTask(Task):
         
         
 
-class AtomicChannel(Channel):
+class AtomicIvar(Ivar):
     def __init__(self, *args, **kwargs):
-        super(AtomicChannel, self).__init__(*args, **kwargs)
+        super(AtomicIvar, self).__init__(*args, **kwargs)
 
         
         # Create the future
-        self._future = Future()
+        self._future = WriteOnceVar()
         # __future stores a handle to the underlying data 
         # future will be set exactly when the underlying data is
         # ready for reading: this way the get() function can block
@@ -87,21 +87,21 @@ class AtomicChannel(Channel):
 
     def _register_input(self, input_task):
         """ 
-        Channel can only be written to once, by a single writer.
+        Ivar can only be written to once, by a single writer.
         """
         #TODO: proper exception types
         if len(self._in_tasks) > 0:
-            raise Exception("Multiple tasks writing to an AtomicChannel")
-        elif self._state != CH_CLOSED:
-            raise Exception("Adding an input to an open AtomicChannel")
+            raise Exception("Multiple tasks writing to an AtomicIvar")
+        elif self._state != IVAR_CLOSED:
+            raise Exception("Adding an input to an open AtomicIvar")
         else:
             self._in_tasks.append(input_task)
 
     def _register_output(self, output_task):
         """
-        Don't need to track output task for notifications if chan isreliable.
+        Don't need to track output task for notifications if ivar is reliable.
         """
-        done = self._state in [CH_OPEN_RW, CH_OPEN_R, CH_DONE_FILLED]
+        done = self._state in [IVAR_OPEN_RW, IVAR_OPEN_R, IVAR_DONE_FILLED]
         if done and self._reliable:
             return True
         else:
@@ -113,7 +113,7 @@ class AtomicChannel(Channel):
         # Merge the futures to handle the case where a thread
         # is block on the current thread's future
        # other._future.merge_future(._future)
-        super(AtomicChannel, self)._replacewith(other)
+        super(AtomicIvar, self)._replacewith(other)
 
 
     def _prepare(self, mode):
@@ -123,37 +123,37 @@ class AtomicChannel(Channel):
         logging.debug("%s prepared" % (repr(self)))
         if mode == M_READWRITE:
             #TODO: exception type
-            raise Exception("M_READWRITE is not valid for atomic channels")
+            raise Exception("M_READWRITE is not valid for atomic Ivars")
         elif mode == M_WRITE: 
             #TODO: work out if it is bound to something, otherwise create a temp
             # State will be open for writing until something
             # is written into the file.
-            if self._state == CH_CLOSED or self._state == CH_CLOSED_WAITING:
+            if self._state == IVAR_CLOSED or self._state == IVAR_CLOSED_WAITING:
                 self._open_write()
-                self._state = CH_OPEN_W
-            elif self._state == CH_OPEN_W or self._state == CH_OPEN_RW:
+                self._state = IVAR_OPEN_W
+            elif self._state == IVAR_OPEN_W or self._state == IVAR_OPEN_RW:
                 pass
             else:
                 #TODO: type
                 raise Exception("Invalid state %d when trying to prepare for writing" %
                         self._state)
-            #TODO: what if the channel is destroyed?
+            #TODO: what if the Ivar is destroyed?
         elif mode == M_READ:
-            if self._state == CH_OPEN_R or self._state == CH_OPEN_RW:
+            if self._state == IVAR_OPEN_R or self._state == IVAR_OPEN_RW:
                 pass
-            elif self._state == CH_DONE_FILLED:
+            elif self._state == IVAR_DONE_FILLED:
                 self._open_read()
-                self._state = CH_OPEN_R
+                self._state = IVAR_OPEN_R
             else:
                 #TODO: exception type
-                raise Exception("Read from channel which does not yet have data assoc")
+                raise Exception("Read from Ivar which does not yet have data assoc")
         else:
-            raise ValueError("Invalid mode to AtomicChannel._prepare %d" % mode)
+            raise ValueError("Invalid mode to AtomicIvar._prepare %d" % mode)
 
 
     def _open_write(self):
         """
-        Called when we want to prepare the channel for writing.  
+        Called when we want to prepare the Ivar for writing.  
         This does any required setup.  Not responsible for 
         state-related logic, but is responsible for ensuring
         that a write will proceed correctly.
@@ -161,12 +161,12 @@ class AtomicChannel(Channel):
         """
         if self._future.isSet():
             #TODO: exception type
-            raise Exception("Write to filled future channel")
+            raise Exception("Write to filled future Ivar")
 
 
     def _open_read(self):
         """
-        Called when we want to prepare the channel for reading.  
+        Called when we want to prepare the Ivar for reading.  
         This does any required setup.  Not responsible for 
         state-related logic, but is responsible for ensuring
         that a read will proceed correctly.
@@ -174,21 +174,21 @@ class AtomicChannel(Channel):
         """
         if not self._future.isSet():
              #TODO: exception type
-            raise Exception("input channel has no data, cannot prepare")
+            raise Exception("input Ivar has no data, cannot prepare")
         
     def _set(self, val):
         """
         Function to be called by input task when the data becomes available
         """
         oldstate = self._state
-        if oldstate in (CH_OPEN_W, CH_OPEN_RW):
+        if oldstate in (IVAR_OPEN_W, IVAR_OPEN_RW):
             self._future.set(val)
             
-            self._state = CH_DONE_FILLED
+            self._state = IVAR_DONE_FILLED
             logging.debug("%s set" % repr(self))
             #update the state and notify output tasks
             for t in self._out_tasks:
-                t._input_readable(self, oldstate, CH_DONE_FILLED)
+                t._input_readable(self, oldstate, IVAR_DONE_FILLED)
 
             if self._reliable:
                 self._in_tasks = None
@@ -196,7 +196,7 @@ class AtomicChannel(Channel):
             self._notify_done()
         else:
             #TODO: exception type
-            raise Exception("Invalid state when atomic_channel %s set" % repr(self))
+            raise Exception("Invalid state when atomic_Ivar %s set" % repr(self))
             
         
 
@@ -210,10 +210,10 @@ class AtomicChannel(Channel):
         For internal use only: get directly from local future, don't
         bother forcing or locking or anything.
         Should have graph lock first.
-        Only call when you are sure the channel has data ready for you.
+        Only call when you are sure the Ivar has data ready for you.
         """
         if LocalExecutor.isWorkerThread():
-            if  not self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
+            if  not self._state in (IVAR_OPEN_R, IVAR_OPEN_RW, IVAR_DONE_FILLED):
                 # This thread goes off and runs stuff recursively
                 # before blocking
                 LocalExecutor.spark_recursive(self)    
@@ -224,25 +224,25 @@ class AtomicChannel(Channel):
             res = self._future.get()
         finally:
             graph_mutex.acquire()
-        if res is ErrorVal and self._state == CH_ERROR:
+        if res is ErrorVal and self._state == IVAR_ERROR:
             raise self._exception
         return res
 
     def _error(self, *args, **kwargs):
         self._future.set(None)
-        super(AtomicChannel, self)._error(*args, **kwargs)
+        super(AtomicIvar, self)._error(*args, **kwargs)
         
     def _has_data(self):
         raise UnimplementedException("_has_data not overridden")
 
     def _try_readable(self):
         logging.debug("_try_readable on %s" % repr(self))
-        if self._state in (CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW):
+        if self._state in (IVAR_DONE_FILLED, IVAR_OPEN_R, IVAR_OPEN_RW):
             return True
-        elif self._state in (CH_CLOSED, CH_DONE_DESTROYED):
+        elif self._state in (IVAR_CLOSED, IVAR_DONE_DESTROYED):
             if len(self._in_tasks) == 0:
                 if self._bound is Unbound:
-                    raise NoDataException("Unbound channel with no input tasks was forced.")
+                    raise NoDataException("Unbound Ivar with no input tasks was forced.")
                 else:
                     if self._has_data():
                         # Data might be there, assume that binding was correct
@@ -250,11 +250,11 @@ class AtomicChannel(Channel):
                         self._set(self._bound)
                         return True
                     else: 
-                        raise NoDataException(("Bound channel with no input tasks " + 
+                        raise NoDataException(("Bound Ivar with no input tasks " + 
                                               "and no associated data was forced. " +
-                                             "Channel was bound to" + repr(self._bound)))
+                                             "Ivar was bound to" + repr(self._bound)))
                         
-        elif self._state in (CH_ERROR,):
+        elif self._state in (IVAR_ERROR,):
             return False
         else:
             return False
@@ -264,38 +264,38 @@ class AtomicChannel(Channel):
     def _spark(self, done_callback=None):
         """
         Should be called with lock held
-        Ensure that at some point in the future this channel will be filled
+        Ensure that at some point in the future this Ivar will be filled
         """
-        logging.debug("Atomic Channel sparked")
+        logging.debug("Atomic Ivar sparked")
         if done_callback is not None:
             self._done_callbacks.append(done_callback)
 
-        if self._state in (CH_CLOSED, CH_DONE_DESTROYED):
+        if self._state in (IVAR_CLOSED, IVAR_DONE_DESTROYED):
             if self._bound is not Unbound and len(self._in_tasks) == 0:
                 try:
                     self._try_readable()
                 except NoDataException, ex:
                     # Don't need to propagate error: this method only run if this
-                    # channel is forced manually
+                    # Ivar is forced manually
                     self._fail([ex])
                     self._notify_done()
                 
             elif len(self._in_tasks) > 0:
                 # Enable task to be run, but
                 # input tasks should be run first
-                self._state = CH_CLOSED_WAITING
+                self._state = IVAR_CLOSED_WAITING
                 LocalExecutor.exec_async(self)
             else:
                 # Nowhere for data to come from
                 #TODO: exception type
-                raise Exception("forcing channel which has no input tasks or bound data")
-        elif self._state in (CH_CLOSED_WAITING, CH_OPEN_W):
+                raise Exception("forcing Ivar which has no input tasks or bound data")
+        elif self._state in (IVAR_CLOSED_WAITING, IVAR_OPEN_W):
             # Already sparked, just wait
             pass
-        elif self._state in (CH_OPEN_R, CH_OPEN_RW, CH_DONE_FILLED):
+        elif self._state in (IVAR_OPEN_R, IVAR_OPEN_RW, IVAR_DONE_FILLED):
             # Filled: notify all, including provided callback
             self._notify_done()
-        elif self._state == CH_ERROR:
+        elif self._state == IVAR_ERROR:
             # It is upto get to check.
             self._notify_done()
             raise self._exception
@@ -309,10 +309,10 @@ class AtomicChannel(Channel):
         
     def _readable(self):
         """
-        For atomic channels, it is readable either if it
+        For atomic Ivars, it is readable either if it
         has been filled or it is bound.
         """
-        return self._state in [CH_DONE_FILLED, CH_OPEN_R, CH_OPEN_RW] \
-            or (self._state in [CH_CLOSED, CH_DONE_DESTROYED] \
+        return self._state in [IVAR_DONE_FILLED, IVAR_OPEN_R, IVAR_OPEN_RW] \
+            or (self._state in [IVAR_CLOSED, IVAR_DONE_DESTROYED] \
                 and self._bound is not None and len(self._in_tasks) == 0)
 

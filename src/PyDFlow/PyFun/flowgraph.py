@@ -2,11 +2,11 @@ from __future__ import with_statement
 '''
 @author: Tim Armstrong
 '''
-from PyDFlow.base.atomic import AtomicChannel, AtomicTask
+from PyDFlow.base.atomic import AtomicIvar, AtomicTask
 from PyDFlow.base.flowgraph import Unbound
 from PyDFlow.base.mutex import graph_mutex
 from PyDFlow.base.states import *
-from PyDFlow.futures import *
+from PyDFlow.writeonce import *
 import PyDFlow.base.LocalExecutor as LocalExecutor
 
 
@@ -14,15 +14,15 @@ import logging
 import threading
 from PyDFlow.types.check import FlTypeError
 
-class FutureChannel(AtomicChannel):
+class PyIvar(AtomicIvar):
 
     def __init__(self, *args, **kwargs):
-        super(FutureChannel, self).__init__(*args, **kwargs)
+        super(PyIvar, self).__init__(*args, **kwargs)
         
-        # The bind variable for future channels will always be
+        # The bind variable for py ivars will always be
         # either a future, or contents for a future
         if self._bound is not Unbound:
-            if not isinstance(self._bound, Future):
+            if not isinstance(self._bound, WriteOnceVar):
                 # If a non-future data item is provided as the binding,
                 # we should pack it into a future (this avoids users)
                 # having to write boilerplate to put things into futures
@@ -30,12 +30,12 @@ class FutureChannel(AtomicChannel):
             else:
                 self._future = self._bound
             if self._future.isSet():
-                    self._state = CH_DONE_FILLED
+                    self._state = IVAR_DONE_FILLED
 
     def _has_data(self):
         """
         Check to see if it is possible to start reading from this
-        channel now
+        ivar now
         """
         return self._future.isSet()
         
@@ -62,7 +62,7 @@ class FuncTask(AtomicTask):
             # Set things up
             # Check state again to be sure it is sensible
             if self._state in (T_QUEUED, T_CONTINUATION):
-                self._prep_channels()
+                self._prep_ivars()
                 input_values = self._gather_input_values()
                 logging.debug("%s: FuncTask %s changing state to T_RUNNING" % (
                                                 threading.currentThread().getName(), 
