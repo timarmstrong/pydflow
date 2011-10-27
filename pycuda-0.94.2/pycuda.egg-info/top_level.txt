@@ -1,3 +1,0 @@
-_driver
-_pvt_struct
-pycuda
