@@ -85,4 +85,4 @@ def SubMapper(type, source, match, transform, directory=None):
         # Change directory
         names = (os.path.join(directory, os.path.basename(name)) 
                  for name in names)
-    return IStruct(type, n)
+    return IStruct(type, len(source))
